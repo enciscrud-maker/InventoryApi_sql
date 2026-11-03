@@ -31,7 +31,7 @@ public class MdAssetConfiguration : IEntityTypeConfiguration<MdAsset>
         b.Property(x => x.SapMaterialNumber).HasColumnName("SapMaterialNumber").HasMaxLength(100);
         b.Property(x => x.AssetValue).HasColumnName("AssetValue").HasPrecision(18, 2);
         b.Property(x => x.Description).HasColumnName("Description").HasMaxLength(1000);
-        b.Property(x => x.LocationId).HasColumnName("LocationId");
+        b.Property(x => x.BusUnitId).HasColumnName("BusUnitId");
         b.Property(x => x.ConditionId).HasColumnName("ConditionId");
         b.Property(x => x.BusinessUnit).HasColumnName("BusinessUnit").HasMaxLength(100);
         b.Property(x => x.UpdatedDt).HasColumnName("UpdatedDt");
@@ -40,7 +40,7 @@ public class MdAssetConfiguration : IEntityTypeConfiguration<MdAsset>
         b.Fk(x => x.Brand, x => x.BrandId);
         b.Fk(x => x.Group, x => x.GroupId);
         b.Fk(x => x.Type, x => x.TypeId);
-        b.Fk(x => x.Location, x => x.LocationId, false);
+        b.Fk(x => x.BusUnit, x => x.BusUnitId, false);
         b.Fk(x => x.Condition, x => x.ConditionId, false);
         b.HasIndex(x => x.AssetPrefix).IsUnique();
         b.HasIndex(x => x.SerialNumber).IsUnique().HasFilter("[SerialNumber] IS NOT NULL");

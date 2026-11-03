@@ -25,5 +25,5 @@ public abstract class MasterControllerBase<TReq, TDto>(IMasterService<TReq, TDto
 [Route("api/asset-types")] public class AssetTypesController(IMasterService<TypeRequest, TypeDto> s) : MasterControllerBase<TypeRequest, TypeDto>(s);
 [Route("api/brands")] public class BrandsController(IMasterService<BrandRequest, BrandDto> s) : MasterControllerBase<BrandRequest, BrandDto>(s);
 [Route("api/asset-models")] public class AssetModelsController(IMasterService<ModelRequest, ModelDto> s) : MasterControllerBase<ModelRequest, ModelDto>(s);
-[Route("api/locations")] public class LocationsController(IMasterService<LocationRequest, LocationDto> s) : MasterControllerBase<LocationRequest, LocationDto>(s);
+[Route("api/business-units")] public class BusinessUnitsController(IMasterService<BusinessUnitRequest, BusinessUnitDto> s) : MasterControllerBase<BusinessUnitRequest, BusinessUnitDto>(s);
 [Route("api/asset-conditions")] public class AssetConditionsController(IMasterService<ConditionRequest, ConditionDto> s) : MasterControllerBase<ConditionRequest, ConditionDto>(s);

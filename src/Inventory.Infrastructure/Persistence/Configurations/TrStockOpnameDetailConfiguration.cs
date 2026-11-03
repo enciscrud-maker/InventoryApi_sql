@@ -18,12 +18,12 @@ public class TrStockOpnameDetailConfiguration : IEntityTypeConfiguration<TrStock
         b.Property(x => x.AssetId).HasColumnName("AssetId");
         b.Property(x => x.SystemQuantity).HasColumnName("SystemQuantity");
         b.Property(x => x.PhysicalQuantity).HasColumnName("PhysicalQuantity");
-        b.Property(x => x.ActualLocationId).HasColumnName("ActualLocationId");
+        b.Property(x => x.ActualBusUnitId).HasColumnName("ActualBusUnitId");
         b.Property(x => x.Finding).HasColumnName("Finding").HasMaxLength(500);
         b.Property(x => x.IsConfirmed).HasColumnName("IsConfirmed");
         b.Property(x => x.Notes).HasColumnName("Notes").HasMaxLength(500);
         b.Property(x => x.EvidencePath).HasColumnName("EvidencePath").HasMaxLength(500);
         b.Fk(x => x.Asset, x => x.AssetId);
-        b.Fk(x => x.ActualLocation, x => x.ActualLocationId, false);
+        b.Fk(x => x.ActualBusUnit, x => x.ActualBusUnitId, false);
     }
 }

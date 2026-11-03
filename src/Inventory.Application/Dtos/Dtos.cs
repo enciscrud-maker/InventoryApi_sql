@@ -32,33 +32,33 @@ public record BrandRequest(int? TypeId, string BrandName, string BrandCode, stri
 public record BrandDto(int BrandId, int? TypeId, string BrandName, string BrandCode, string BrandPrefix, bool IsActive);
 public record ModelRequest(int? AssetId, int CatId, int BrandId, int GroupId, int TypeId, string ModelName, string ModelCode, bool IsActive = true);
 public record ModelDto(int ModelId, int? AssetId, int CatId, int BrandId, int GroupId, int TypeId, string ModelName, string ModelCode, bool IsActive);
-public record LocationRequest(string LocationCode, string LocationName, string? BusinessUnit, bool IsActive = true);
-public record LocationDto(int LocationId, string LocationCode, string LocationName, string? BusinessUnit, bool IsActive);
+public record BusinessUnitRequest(string BusUnitCode, string BusUnitPrefix, string LocatioName, bool IsActive = true);
+public record BusinessUnitDto(int BusUnitId, string BusUnitCode, string BusUnitPrefix, string LocatioName, bool IsActive);
 public record ConditionRequest(string ConditionCode, string ConditionName, bool IsActive = true);
 public record ConditionDto(int ConditionId, string ConditionCode, string ConditionName, bool IsActive);
 
 // ---------- Assets ----------
 public record AssetRequest(int CatId, int GroupId, int TypeId, int BrandId, string AssetName, AssetType AssetType, string AssetStatus, string AssetPrefix,
     int? Quantity, string? UnitOfMeasure, string? SerialNumber, string? AssetTag, string? PurchaseOrderNumber, string? SapMaterialNumber,
-    decimal? AssetValue, string? Description, int? LocationId, int? ConditionId, string? BusinessUnit, string? RowVersion);
+    decimal? AssetValue, string? Description, int? BusUnitId, int? ConditionId, string? BusinessUnit, string? RowVersion);
 public record AssetDto(int AssetId, int CatId, string CatName, int GroupId, string GroupName, int TypeId, string TypeName, int BrandId, string BrandName,
     string AssetName, AssetType AssetType, string AssetStatus, string AssetPrefix, DateTime CreatedDt, int Quantity, string? UnitOfMeasure,
     string? SerialNumber, string? AssetTag, string? PurchaseOrderNumber, string? SapMaterialNumber, decimal? AssetValue, string? Description,
-    int? LocationId, string? LocationName, int? ConditionId, string? ConditionName, string? BusinessUnit, DateTime? UpdatedDt, string RowVersion);
+    int? BusUnitId, string? LocatioName, int? ConditionId, string? ConditionName, string? BusinessUnit, DateTime? UpdatedDt, string RowVersion);
 public class AssetQuery : PageQuery
 {
     public int? CatId { get; set; }
     public int? GroupId { get; set; }
     public int? TypeId { get; set; }
     public int? BrandId { get; set; }
-    public int? LocationId { get; set; }
+    public int? BusUnitId { get; set; }
     public string? BusinessUnit { get; set; }
     public int? ConditionId { get; set; }
     public AssetType? AssetType { get; set; }
     public string? AssetStatus { get; set; }
 }
-public record BulkLocationRequest(List<int> AssetIds, int LocationId, string? BusinessUnit);
-public record BulkLocationResult(int UpdatedCount);
+public record BulkBusinessUnitRequest(List<int> AssetIds, int BusUnitId, string? BusinessUnit);
+public record BulkBusinessUnitResult(int UpdatedCount);
 public record ImportError(int RowNumber, List<string> Messages);
 public record ImportResult(int TotalRows, int SuccessCount, int FailedCount, List<ImportError> Errors);
 
@@ -66,7 +66,7 @@ public record ImportResult(int TotalRows, int SuccessCount, int FailedCount, Lis
 public record GoodItemRequest(int AssetId, int Quantity, string? SerialNumber, string? ReferenceNumber, string? AssetInformation, string? Condition,
     string? Remarks, string? Specifications, string? RequestJustification, string? RequiredDuration, string? IntendedPurpose);
 public record GoodCreateRequest(string RequestId, string GoodName, TransactionType TransactionType, string BusinessUnit, DateTime RequestDate, DateTime FormIssueDate,
-    string PersonName, string PersonNik, string PersonDepartment, string DestinationLocation, string? RequestNumber, string ApproverName, string? InventoryNotes,
+    string PersonName, string PersonNik, string PersonDepartment, string DestinationBusinessUnit, string? RequestNumber, string ApproverName, string? InventoryNotes,
     List<GoodItemRequest> Items);
 public record GoodStatusRequest(GoodStatus Status, string? Notes);
 public record GoodListItemDto(int GoodId, DateTime Date, string DocumentNumber, int TotalAssets, TransactionType TransactionType,
@@ -77,7 +77,7 @@ public record GoodAttachmentDto(int GoodAttachmentId, string OriginalFileName, s
 public record GoodStatusHistoryDto(int GoodStatusHistoryId, GoodStatus PreviousStatus, GoodStatus NewStatus, int ActorUserId, string ActorName, string ActorNik, DateTime ChangedAt, string? Notes);
 public record GoodDetailDto(int GoodId, string DocumentNumber, string GoodName, GoodType GoodType, TransactionType TransactionType, GoodStatus Status, string GoodPrefix,
     DateTime CreatedDt, string RequestId, string BusinessUnit, DateTime RequestDate, DateTime FormIssueDate, string PersonName, string PersonNik, string PersonDepartment,
-    string DestinationLocation, string? RequestNumber, string ApproverName, string? InventoryNotes, bool InventoryAdjustmentApplied, DateTime? InventoryAdjustedAt,
+    string DestinationBusinessUnit, string? RequestNumber, string ApproverName, string? InventoryNotes, bool InventoryAdjustmentApplied, DateTime? InventoryAdjustedAt,
     int CreatedByUserId, int TotalAssets, IReadOnlyList<GoodItemDto> Items, IReadOnlyList<GoodAttachmentDto> Attachments, IReadOnlyList<GoodStatusHistoryDto> StatusHistory, string RowVersion);
 public class GoodQuery : PageQuery
 {
@@ -88,22 +88,22 @@ public class GoodQuery : PageQuery
 }
 
 // ---------- Stock audit ----------
-public record AuditCreateRequest(string StockOpnameName, StockOpnameType StockOpnameType, int AssetId, DateTime AuditDate, string? BusinessUnit, int? LocationId, string? StockOpnameStatus);
-public record AuditUpdateRequest(string StockOpnameName, DateTime AuditDate, string? BusinessUnit, int? LocationId, string StockOpnameStatus);
-public record AuditItemRequest(int? StockOpnameDetailId, int AssetId, int PhysicalQuantity, int? ActualLocationId, string? Finding, bool IsConfirmed, string? Notes);
+public record AuditCreateRequest(string StockOpnameName, StockOpnameType StockOpnameType, int AssetId, DateTime AuditDate, string? BusinessUnit, int? BusUnitId, string? StockOpnameStatus);
+public record AuditUpdateRequest(string StockOpnameName, DateTime AuditDate, string? BusinessUnit, int? BusUnitId, string StockOpnameStatus);
+public record AuditItemRequest(int? StockOpnameDetailId, int AssetId, int PhysicalQuantity, int? ActualBusUnitId, string? Finding, bool IsConfirmed, string? Notes);
 public record AuditItemsRequest(List<AuditItemRequest> Items);
 public record AuditItemDto(int StockOpnameDetailId, int AssetId, string AssetName, string AssetPrefix, int SystemQuantity, int PhysicalQuantity, int Variance,
-    int? ActualLocationId, string? Finding, bool IsConfirmed, string? Notes, string? EvidencePath);
+    int? ActualBusUnitId, string? Finding, bool IsConfirmed, string? Notes, string? EvidencePath);
 public record AuditListItemDto(int StockOpnameId, string StockOpnameNumber, string StockOpnameName, DateTime AuditDate, StockOpnameType StockOpnameType, string StockOpnameStatus,
-    string? BusinessUnit, int? LocationId, int ItemCount, int DiscrepancyCount);
+    string? BusinessUnit, int? BusUnitId, int ItemCount, int DiscrepancyCount);
 public record AuditDetailDto(int StockOpnameId, string StockOpnameNumber, string StockOpnameName, DateTime AuditDate, StockOpnameType StockOpnameType, string StockOpnameStatus,
-    string StockOpnamePrefix, int AssetId, int AuditorUserId, string? BusinessUnit, int? LocationId, DateTime CreatedDt, DateTime? UpdatedDt, IReadOnlyList<AuditItemDto> Items);
+    string StockOpnamePrefix, int AssetId, int AuditorUserId, string? BusinessUnit, int? BusUnitId, DateTime CreatedDt, DateTime? UpdatedDt, IReadOnlyList<AuditItemDto> Items);
 public class AuditQuery : PageQuery
 {
     public string? Status { get; set; }
     public DateTime? From { get; set; }
     public DateTime? To { get; set; }
-    public int? LocationId { get; set; }
+    public int? BusUnitId { get; set; }
     public string? BusinessUnit { get; set; }
 }
 

@@ -28,6 +28,7 @@ dotnet ef migrations add InitialCreate -p src/Inventory.Infrastructure -s src/In
 dotnet ef database update -p src/Inventory.Infrastructure -s src/Inventory.Api
 ```
 Setelah ada migration, startup otomatis memanggil `Migrate()`.
+Perubahan skema tidak diterapkan ke database lama oleh `EnsureCreated`; buat dan jalankan migration sebelum memakai database yang sudah ada.
 
 ### Konfigurasi produksi
 - `Jwt__Key` (>= 32 karakter, WAJIB diganti), `ConnectionStrings__DefaultConnection`.
@@ -53,4 +54,4 @@ Cakupan: login/refresh, RBAC (401/403), validasi hierarki, import CSV/XLSX, stok
 12. Kolom `CFG_ModelRole.model_id` memakai snake_case persis seperti ERD, sedangkan `CFG_ModelPermission.ModelId` PascalCase.
 
 ## Endpoint
-Semua ada di Swagger (enum dan TransactionType didokumentasikan). Ringkas: `/api/auth/*`, `/api/employees`, `/api/users`, `/api/roles`, `/api/permissions`, `/api/assets` (+ `bulk-location`, `import`, `export`, `import-template`), master (`/api/categories`, `asset-groups`, `asset-types`, `brands`, `asset-models`, `locations`, `asset-conditions`), `/api/goods-in`, `/api/goods-out`, `/api/stock-audits`, `/api/dashboard/summary`, `/api/reports/*`.
+Semua ada di Swagger (enum dan TransactionType didokumentasikan). Ringkas: `/api/auth/*`, `/api/employees`, `/api/users`, `/api/roles`, `/api/permissions`, `/api/assets` (+ `bulk-business-unit`, `import`, `export`, `import-template`), master (`/api/categories`, `asset-groups`, `asset-types`, `brands`, `asset-models`, `business-units`, `asset-conditions`), `/api/goods-in`, `/api/goods-out`, `/api/stock-audits`, `/api/dashboard/summary`, `/api/reports/*`.

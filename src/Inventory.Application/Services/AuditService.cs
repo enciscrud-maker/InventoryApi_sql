@@ -9,7 +9,7 @@ public class AuditService(IAppDbContext db, ICurrentUser current, IFileStorage s
         var x = db.StockOpnames.AsNoTracking().AsQueryable();
         if (!string.IsNullOrWhiteSpace(q.Search)) { var s = q.Search.Trim(); x = x.Where(a => a.StockOpnameNumber.Contains(s) || a.StockOpnameName.Contains(s)); }
         if (!string.IsNullOrWhiteSpace(q.Status)) { var st = q.Status.Trim(); x = x.Where(a => a.StockOpnameStatus == st); }
-        if (q.LocationId.HasValue) x = x.Where(a => a.LocationId == q.LocationId.Value);
+        if (q.BusUnitId.HasValue) x = x.Where(a => a.BusUnitId == q.BusUnitId.Value);
         if (!string.IsNullOrWhiteSpace(q.BusinessUnit)) { var bu = q.BusinessUnit.Trim(); x = x.Where(a => a.BusinessUnit == bu); }
         if (q.From.HasValue) { var f = Time.ToUtc(q.From.Value); x = x.Where(a => a.AuditDate >= f); }
         if (q.To.HasValue) { var t = Time.ToUtc(q.To.Value); x = x.Where(a => a.AuditDate <= t); }
@@ -27,7 +27,7 @@ public class AuditService(IAppDbContext db, ICurrentUser current, IFileStorage s
             _ => x.OrderByDir(a => a.AuditDate, desc).ThenByDescending(a => a.StockOpnameId)
         };
         return await sorted.Select(a => new AuditListItemDto(a.StockOpnameId, a.StockOpnameNumber, a.StockOpnameName, a.AuditDate, a.StockOpnameType, a.StockOpnameStatus,
-            a.BusinessUnit, a.LocationId, a.Details.Count(), a.Details.Count(d => d.PhysicalQuantity != d.SystemQuantity))).ToPagedAsync(q, ct);
+            a.BusinessUnit, a.BusUnitId, a.Details.Count(), a.Details.Count(d => d.PhysicalQuantity != d.SystemQuantity))).ToPagedAsync(q, ct);
     }
 
     public async Task<AuditDetailDto> GetAsync(int id, CancellationToken ct)
@@ -42,7 +42,7 @@ public class AuditService(IAppDbContext db, ICurrentUser current, IFileStorage s
         var userId = current.UserId ?? throw new AppException(401, "Unauthorized", "Authenticated user is required.");
         var asset = await db.Assets.AsNoTracking().FirstOrDefaultAsync(a => a.AssetId == r.AssetId, ct) ?? throw new ValidationFailedException("assetId", "Asset does not exist.");
         var status = NormalizeStatus(r.StockOpnameStatus) ?? StockOpnameStatuses.Draft;
-        await EnsureLocationAsync(r.LocationId, ct);
+        await EnsureBusinessUnitAsync(r.BusUnitId, ct);
 
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         await db.Database.ExecuteSqlRawAsync("EXEC sp_getapplock @Resource = N'TR_StockOpname_Number', @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 15000", ct);
@@ -55,7 +55,7 @@ public class AuditService(IAppDbContext db, ICurrentUser current, IFileStorage s
         {
             UserId = userId, AssetId = asset.AssetId, CategoryId = asset.CatId, BrandId = asset.BrandId, GroupId = asset.GroupId, TypeId = asset.TypeId,
             StockOpnameName = r.StockOpnameName.Trim(), StockOpnameType = r.StockOpnameType, StockOpnameStatus = status, StockOpnamePrefix = "SO",
-            CreatedDt = now, StockOpnameNumber = $"{stem}{seq:D4}", AuditDate = Time.ToUtc(r.AuditDate), BusinessUnit = r.BusinessUnit?.Trim(), LocationId = r.LocationId
+            CreatedDt = now, StockOpnameNumber = $"{stem}{seq:D4}", AuditDate = Time.ToUtc(r.AuditDate), BusinessUnit = r.BusinessUnit?.Trim(), BusUnitId = r.BusUnitId
         };
         db.StockOpnames.Add(audit);
         await db.SaveChangesAsync(ct);
@@ -69,9 +69,9 @@ public class AuditService(IAppDbContext db, ICurrentUser current, IFileStorage s
         var status = NormalizeStatus(r.StockOpnameStatus) ?? throw new ValidationFailedException("stockOpnameStatus", $"Status must be one of: {string.Join(", ", StockOpnameStatuses.All)}.");
         if (a.StockOpnameStatus == StockOpnameStatuses.Completed && status == StockOpnameStatuses.Completed)
             throw new ConflictException("A completed audit is read-only.");
-        await EnsureLocationAsync(r.LocationId, ct);
+        await EnsureBusinessUnitAsync(r.BusUnitId, ct);
         a.StockOpnameName = r.StockOpnameName.Trim(); a.AuditDate = Time.ToUtc(r.AuditDate); a.BusinessUnit = r.BusinessUnit?.Trim();
-        a.LocationId = r.LocationId; a.StockOpnameStatus = status; a.UpdatedDt = DateTime.UtcNow;
+        a.BusUnitId = r.BusUnitId; a.StockOpnameStatus = status; a.UpdatedDt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
         return await GetAsync(id, ct);
     }
@@ -86,9 +86,9 @@ public class AuditService(IAppDbContext db, ICurrentUser current, IFileStorage s
         var assets = await db.Assets.AsNoTracking().Where(a => assetIds.Contains(a.AssetId)).ToDictionaryAsync(a => a.AssetId, ct);
         var missing = assetIds.Except(assets.Keys).ToList();
         if (missing.Count > 0) throw new ValidationFailedException("items", $"Assets not found: {string.Join(", ", missing)}.");
-        var locIds = r.Items.Where(i => i.ActualLocationId.HasValue).Select(i => i.ActualLocationId!.Value).Distinct().ToList();
-        if (locIds.Count > 0 && await db.Locations.CountAsync(l => locIds.Contains(l.LocationId), ct) != locIds.Count)
-            throw new ValidationFailedException("items", "One or more actual locations do not exist.");
+        var busUnitIds = r.Items.Where(i => i.ActualBusUnitId.HasValue).Select(i => i.ActualBusUnitId!.Value).Distinct().ToList();
+        if (busUnitIds.Count > 0 && await db.BusinessUnits.CountAsync(b => busUnitIds.Contains(b.BusUnitId), ct) != busUnitIds.Count)
+            throw new ValidationFailedException("items", "One or more actual business units do not exist.");
 
         var keepIds = r.Items.Where(i => i.StockOpnameDetailId.HasValue).Select(i => i.StockOpnameDetailId!.Value).ToHashSet();
         var unknown = keepIds.Except(audit.Details.Select(d => d.StockOpnameDetailId)).ToList();
@@ -109,7 +109,7 @@ public class AuditService(IAppDbContext db, ICurrentUser current, IFileStorage s
                 d = new TrStockOpnameDetail { StockOpnameId = id, AssetId = i.AssetId, SystemQuantity = assets[i.AssetId].Quantity };
                 db.StockOpnameDetails.Add(d);
             }
-            d.PhysicalQuantity = i.PhysicalQuantity; d.ActualLocationId = i.ActualLocationId; d.IsConfirmed = i.IsConfirmed; d.Notes = i.Notes;
+            d.PhysicalQuantity = i.PhysicalQuantity; d.ActualBusUnitId = i.ActualBusUnitId; d.IsConfirmed = i.IsConfirmed; d.Notes = i.Notes;
             var variance = d.PhysicalQuantity - d.SystemQuantity;
             d.Finding = string.IsNullOrWhiteSpace(i.Finding) ? (variance == 0 ? "Match" : variance < 0 ? "Shortage" : "Overage") : i.Finding.Trim();
         }
@@ -134,17 +134,17 @@ public class AuditService(IAppDbContext db, ICurrentUser current, IFileStorage s
         return ToItem(item);
     }
 
-    private async Task EnsureLocationAsync(int? locationId, CancellationToken ct)
+    private async Task EnsureBusinessUnitAsync(int? busUnitId, CancellationToken ct)
     {
-        if (locationId.HasValue && !await db.Locations.AnyAsync(l => l.LocationId == locationId.Value, ct))
-            throw new ValidationFailedException("locationId", "Location does not exist.");
+        if (busUnitId.HasValue && !await db.BusinessUnits.AnyAsync(b => b.BusUnitId == busUnitId.Value, ct))
+            throw new ValidationFailedException("busUnitId", "Business unit does not exist.");
     }
 
     private static string? NormalizeStatus(string? s) => string.IsNullOrWhiteSpace(s) ? null : StockOpnameStatuses.All.FirstOrDefault(x => string.Equals(x, s.Trim(), StringComparison.OrdinalIgnoreCase));
 
     private static AuditItemDto ToItem(TrStockOpnameDetail d) => new(d.StockOpnameDetailId, d.AssetId, d.Asset.AssetName, d.Asset.AssetPrefix, d.SystemQuantity, d.PhysicalQuantity,
-        d.PhysicalQuantity - d.SystemQuantity, d.ActualLocationId, d.Finding, d.IsConfirmed, d.Notes, d.EvidencePath);
+        d.PhysicalQuantity - d.SystemQuantity, d.ActualBusUnitId, d.Finding, d.IsConfirmed, d.Notes, d.EvidencePath);
 
     private static AuditDetailDto ToDto(TrStockOpname a) => new(a.StockOpnameId, a.StockOpnameNumber, a.StockOpnameName, a.AuditDate, a.StockOpnameType, a.StockOpnameStatus,
-        a.StockOpnamePrefix, a.AssetId, a.UserId, a.BusinessUnit, a.LocationId, a.CreatedDt, a.UpdatedDt, a.Details.OrderBy(d => d.StockOpnameDetailId).Select(ToItem).ToList());
+        a.StockOpnamePrefix, a.AssetId, a.UserId, a.BusinessUnit, a.BusUnitId, a.CreatedDt, a.UpdatedDt, a.Details.OrderBy(d => d.StockOpnameDetailId).Select(ToItem).ToList());
 }

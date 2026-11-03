@@ -6,7 +6,7 @@ public class AssetService(IAppDbContext db, IHierarchyValidator hierarchy)
     {
         IQueryable<MdAsset> x = db.Assets.AsNoTracking()
             .Include(a => a.Category).Include(a => a.Group).Include(a => a.Type).Include(a => a.Brand)
-            .Include(a => a.Location).Include(a => a.Condition);
+            .Include(a => a.BusUnit).Include(a => a.Condition);
         if (!string.IsNullOrWhiteSpace(q.Search))
         {
             var s = q.Search.Trim();
@@ -16,7 +16,7 @@ public class AssetService(IAppDbContext db, IHierarchyValidator hierarchy)
         if (q.GroupId.HasValue) x = x.Where(a => a.GroupId == q.GroupId.Value);
         if (q.TypeId.HasValue) x = x.Where(a => a.TypeId == q.TypeId.Value);
         if (q.BrandId.HasValue) x = x.Where(a => a.BrandId == q.BrandId.Value);
-        if (q.LocationId.HasValue) x = x.Where(a => a.LocationId == q.LocationId.Value);
+        if (q.BusUnitId.HasValue) x = x.Where(a => a.BusUnitId == q.BusUnitId.Value);
         if (q.ConditionId.HasValue) x = x.Where(a => a.ConditionId == q.ConditionId.Value);
         if (!string.IsNullOrWhiteSpace(q.BusinessUnit)) { var bu = q.BusinessUnit.Trim(); x = x.Where(a => a.BusinessUnit == bu); }
         if (q.AssetType.HasValue) x = x.Where(a => a.AssetType == q.AssetType.Value);
@@ -74,11 +74,11 @@ public class AssetService(IAppDbContext db, IHierarchyValidator hierarchy)
         return await GetAsync(id, ct);
     }
 
-    public async Task<BulkLocationResult> BulkLocationAsync(BulkLocationRequest r, CancellationToken ct)
+    public async Task<BulkBusinessUnitResult> BulkBusinessUnitAsync(BulkBusinessUnitRequest r, CancellationToken ct)
     {
         var ids = r.AssetIds.Distinct().ToList();
-        var loc = await db.Locations.AsNoTracking().FirstOrDefaultAsync(l => l.LocationId == r.LocationId, ct)
-            ?? throw new ValidationFailedException("locationId", "Location does not exist.");
+        var businessUnit = await db.BusinessUnits.AsNoTracking().FirstOrDefaultAsync(b => b.BusUnitId == r.BusUnitId, ct)
+            ?? throw new ValidationFailedException("busUnitId", "Business unit does not exist.");
         var assets = await db.Assets.Where(a => ids.Contains(a.AssetId)).ToListAsync(ct);
         if (assets.Count != ids.Count)
         {
@@ -88,12 +88,12 @@ public class AssetService(IAppDbContext db, IHierarchyValidator hierarchy)
         var now = DateTime.UtcNow;
         foreach (var a in assets)
         {
-            a.LocationId = loc.LocationId;
-            a.BusinessUnit = string.IsNullOrWhiteSpace(r.BusinessUnit) ? loc.BusinessUnit ?? a.BusinessUnit : r.BusinessUnit.Trim();
+            a.BusUnitId = businessUnit.BusUnitId;
+            if (!string.IsNullOrWhiteSpace(r.BusinessUnit)) a.BusinessUnit = r.BusinessUnit.Trim();
             a.UpdatedDt = now;
         }
         await db.SaveChangesAsync(ct);
-        return new BulkLocationResult(assets.Count);
+        return new BulkBusinessUnitResult(assets.Count);
     }
 
     public async Task<byte[]> ExportAsync(AssetQuery q, CancellationToken ct)
@@ -102,12 +102,12 @@ public class AssetService(IAppDbContext db, IHierarchyValidator hierarchy)
         return ExcelHelper.Build("Assets", new[]
         {
             "AssetId", "AssetPrefix", "AssetName", "Category", "Group", "Type", "Brand", "AssetType", "AssetStatus", "Quantity", "UnitOfMeasure",
-            "SerialNumber", "AssetTag", "PurchaseOrderNumber", "SapMaterialNumber", "AssetValue", "Location", "Condition", "BusinessUnit", "CreatedDt (UTC)"
+            "SerialNumber", "AssetTag", "PurchaseOrderNumber", "SapMaterialNumber", "AssetValue", "LocatioName", "Condition", "BusinessUnit", "CreatedDt (UTC)"
         }, items.Select(a => new object?[]
         {
             a.AssetId, a.AssetPrefix, a.AssetName, a.Category.CatName, a.Group.GroupName, a.Type.TypeName, a.Brand.BrandName, a.AssetType, a.AssetStatus,
             a.Quantity, a.UnitOfMeasure, a.SerialNumber, a.AssetTag, a.PurchaseOrderNumber, a.SapMaterialNumber, a.AssetValue,
-            a.Location?.LocationName, a.Condition?.ConditionName, a.BusinessUnit, a.CreatedDt
+            a.BusUnit?.LocatioName, a.Condition?.ConditionName, a.BusinessUnit, a.CreatedDt
         }));
     }
 
@@ -119,8 +119,8 @@ public class AssetService(IAppDbContext db, IHierarchyValidator hierarchy)
             throw new ConflictException($"AssetPrefix '{r.AssetPrefix}' already exists.");
         if (!string.IsNullOrWhiteSpace(r.SerialNumber) && await db.Assets.AnyAsync(a => a.SerialNumber == r.SerialNumber && a.AssetId != self, ct))
             throw new ConflictException($"SerialNumber '{r.SerialNumber}' already exists.");
-        if (r.LocationId.HasValue && !await db.Locations.AnyAsync(l => l.LocationId == r.LocationId.Value, ct))
-            throw new ValidationFailedException("locationId", "Location does not exist.");
+        if (r.BusUnitId.HasValue && !await db.BusinessUnits.AnyAsync(b => b.BusUnitId == r.BusUnitId.Value, ct))
+            throw new ValidationFailedException("busUnitId", "Business unit does not exist.");
         if (r.ConditionId.HasValue && !await db.Conditions.AnyAsync(c => c.ConditionId == r.ConditionId.Value, ct))
             throw new ValidationFailedException("conditionId", "Condition does not exist.");
     }
@@ -133,11 +133,11 @@ public class AssetService(IAppDbContext db, IHierarchyValidator hierarchy)
         a.SerialNumber = string.IsNullOrWhiteSpace(r.SerialNumber) ? null : r.SerialNumber.Trim();
         a.AssetTag = r.AssetTag?.Trim(); a.PurchaseOrderNumber = r.PurchaseOrderNumber?.Trim(); a.SapMaterialNumber = r.SapMaterialNumber?.Trim();
         a.AssetValue = r.AssetValue; a.Description = r.Description?.Trim();
-        a.LocationId = r.LocationId; a.ConditionId = r.ConditionId; a.BusinessUnit = r.BusinessUnit?.Trim();
+        a.BusUnitId = r.BusUnitId; a.ConditionId = r.ConditionId; a.BusinessUnit = r.BusinessUnit?.Trim();
     }
 
     public static AssetDto ToDto(MdAsset a) => new(a.AssetId, a.CatId, a.Category.CatName, a.GroupId, a.Group.GroupName, a.TypeId, a.Type.TypeName,
         a.BrandId, a.Brand.BrandName, a.AssetName, a.AssetType, a.AssetStatus, a.AssetPrefix, a.CreatedDt, a.Quantity, a.UnitOfMeasure, a.SerialNumber,
-        a.AssetTag, a.PurchaseOrderNumber, a.SapMaterialNumber, a.AssetValue, a.Description, a.LocationId, a.Location?.LocationName,
+        a.AssetTag, a.PurchaseOrderNumber, a.SapMaterialNumber, a.AssetValue, a.Description, a.BusUnitId, a.BusUnit?.LocatioName,
         a.ConditionId, a.Condition?.ConditionName, a.BusinessUnit, a.UpdatedDt, Convert.ToBase64String(a.RowVersion));
 }

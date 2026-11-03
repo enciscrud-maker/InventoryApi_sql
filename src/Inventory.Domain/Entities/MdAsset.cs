@@ -20,7 +20,7 @@ public class MdAsset
     public string? SapMaterialNumber { get; set; }
     public decimal? AssetValue { get; set; }
     public string? Description { get; set; }
-    public int? LocationId { get; set; }
+    public int? BusUnitId { get; set; }
     public int? ConditionId { get; set; }
     public string? BusinessUnit { get; set; }
     public DateTime? UpdatedDt { get; set; }
@@ -29,6 +29,6 @@ public class MdAsset
     public MdBrand Brand { get; set; } = null!;
     public MdGroup Group { get; set; } = null!;
     public MdType Type { get; set; } = null!;
-    public MdLocation? Location { get; set; }
+    public MdBusinessUnit? BusUnit { get; set; }
     public MdAssetCondition? Condition { get; set; }
 }

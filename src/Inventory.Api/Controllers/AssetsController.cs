@@ -5,7 +5,7 @@ public class AssetsController(AssetService assets, AssetImportService import) : 
 {
     private const long MaxImportBytes = 5 * 1024 * 1024;
 
-    /// <summary>Paged list. Filters: catId, groupId, typeId, brandId, locationId, businessUnit, conditionId, assetType, assetStatus. Sort: name, prefix, createdDt, quantity, status.</summary>
+    /// <summary>Paged list. Filters: catId, groupId, typeId, brandId, busUnitId, businessUnit, conditionId, assetType, assetStatus. Sort: name, prefix, createdDt, quantity, status.</summary>
     [HttpGet, Authorize(Policy = Permissions.AssetRead)]
     public async Task<ActionResult<PagedResult<AssetDto>>> List([FromQuery] AssetQuery q, CancellationToken ct) => Ok(await assets.ListAsync(q, ct));
 
@@ -20,8 +20,8 @@ public class AssetsController(AssetService assets, AssetImportService import) : 
     [HttpPut("{id:int}"), Authorize(Policy = Permissions.AssetUpdate)]
     public async Task<ActionResult<AssetDto>> Update(int id, AssetRequest r, CancellationToken ct) => Ok(await assets.UpdateAsync(id, r, ct));
 
-    [HttpPost("bulk-location"), Authorize(Policy = Permissions.AssetUpdate)]
-    public async Task<ActionResult<BulkLocationResult>> BulkLocation(BulkLocationRequest r, CancellationToken ct) => Ok(await assets.BulkLocationAsync(r, ct));
+    [HttpPost("bulk-business-unit"), Authorize(Policy = Permissions.AssetUpdate)]
+    public async Task<ActionResult<BulkBusinessUnitResult>> BulkBusinessUnit(BulkBusinessUnitRequest r, CancellationToken ct) => Ok(await assets.BulkBusinessUnitAsync(r, ct));
 
     /// <summary>Imports assets from .xlsx or .csv (multipart field <c>file</c>). Valid rows are inserted in one transaction; invalid rows are reported.</summary>
     [HttpPost("import"), Authorize(Policy = Permissions.AssetImport), Consumes("multipart/form-data")]

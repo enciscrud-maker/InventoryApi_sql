@@ -6,7 +6,7 @@ public class GoodService(IAppDbContext db, ICurrentUser current, IFileStorage st
     private static readonly string[] AllowedExtensions = { ".pdf", ".png", ".jpg", ".jpeg", ".doc", ".docx", ".xls", ".xlsx" };
 
     public static readonly Expression<Func<TrGood, GoodListItemDto>> ListProjection = g => new GoodListItemDto(
-        g.GoodId, g.RequestDate, g.GoodNumber, g.Details.Sum(d => d.Quantity), g.TransactionType, g.PersonName, g.DestinationLocation, g.GoodStatus);
+        g.GoodId, g.RequestDate, g.GoodNumber, g.Details.Sum(d => d.Quantity), g.TransactionType, g.PersonName, g.DestinationBusinessUnit, g.GoodStatus);
 
     public IQueryable<TrGood> Filtered(GoodType? type, GoodQuery q)
     {
@@ -15,7 +15,7 @@ public class GoodService(IAppDbContext db, ICurrentUser current, IFileStorage st
         if (!string.IsNullOrWhiteSpace(q.Search))
         {
             var s = q.Search.Trim();
-            x = x.Where(g => g.GoodNumber.Contains(s) || g.GoodName.Contains(s) || g.PersonName.Contains(s) || g.DestinationLocation.Contains(s));
+            x = x.Where(g => g.GoodNumber.Contains(s) || g.GoodName.Contains(s) || g.PersonName.Contains(s) || g.DestinationBusinessUnit.Contains(s));
         }
         if (q.Status.HasValue) x = x.Where(g => g.GoodStatus == q.Status.Value);
         if (q.TransactionType.HasValue) x = x.Where(g => g.TransactionType == q.TransactionType.Value);
@@ -115,7 +115,7 @@ public class GoodService(IAppDbContext db, ICurrentUser current, IFileStorage st
             GoodNumber = $"{stem}{seq:D4}", RequestId = r.RequestId.Trim(), TransactionType = r.TransactionType, BusinessUnit = r.BusinessUnit.Trim(),
             RequestDate = Time.ToUtc(r.RequestDate), FormIssueDate = Time.ToUtc(r.FormIssueDate),
             PersonName = r.PersonName.Trim(), PersonNik = r.PersonNik.Trim(), PersonDepartment = r.PersonDepartment.Trim(),
-            DestinationLocation = r.DestinationLocation.Trim(), RequestNumber = r.RequestNumber?.Trim(), ApproverName = r.ApproverName.Trim(),
+            DestinationBusinessUnit = r.DestinationBusinessUnit.Trim(), RequestNumber = r.RequestNumber?.Trim(), ApproverName = r.ApproverName.Trim(),
             InventoryNotes = r.InventoryNotes?.Trim(), InventoryAdjustmentApplied = true, InventoryAdjustedAt = now,
             Details = r.Items.Select(i => new TrGoodDetail
             {
@@ -175,7 +175,7 @@ public class GoodService(IAppDbContext db, ICurrentUser current, IFileStorage st
 
     private static GoodDetailDto ToDto(TrGood g) => new(
         g.GoodId, g.GoodNumber, g.GoodName, g.GoodType, g.TransactionType, g.GoodStatus, g.GoodPrefix, g.CreatedDt, g.RequestId, g.BusinessUnit,
-        g.RequestDate, g.FormIssueDate, g.PersonName, g.PersonNik, g.PersonDepartment, g.DestinationLocation, g.RequestNumber, g.ApproverName,
+        g.RequestDate, g.FormIssueDate, g.PersonName, g.PersonNik, g.PersonDepartment, g.DestinationBusinessUnit, g.RequestNumber, g.ApproverName,
         g.InventoryNotes, g.InventoryAdjustmentApplied, g.InventoryAdjustedAt, g.UserId, g.Details.Sum(d => d.Quantity),
         g.Details.OrderBy(d => d.GoodDetailId).Select(d => new GoodItemDto(d.GoodDetailId, d.AssetId, d.Asset.AssetName, d.Asset.AssetPrefix, d.Quantity, d.SerialNumber,
             d.ReferenceNumber, d.AssetInformation, d.Condition, d.Remarks, d.Specifications, d.RequestJustification, d.RequiredDuration, d.IntendedPurpose)).ToList(),

@@ -11,7 +11,7 @@ public interface IAppDbContext
     DbSet<MdBrand> Brands { get; }
     DbSet<MdModel> Models { get; }
     DbSet<MdAsset> Assets { get; }
-    DbSet<MdLocation> Locations { get; }
+    DbSet<MdBusinessUnit> BusinessUnits { get; }
     DbSet<MdAssetCondition> Conditions { get; }
     DbSet<MdEmployee> Employees { get; }
     DbSet<MdUser> Users { get; }

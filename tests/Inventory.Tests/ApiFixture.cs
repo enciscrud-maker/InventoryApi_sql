@@ -78,7 +78,7 @@ public class ApiFixture : IAsyncLifetime
     {
         requestId = requestId ?? Guid.NewGuid().ToString(), goodName = "Test " + type, transactionType = type.ToString(), businessUnit = "Corporate",
         requestDate = DateTime.UtcNow, formIssueDate = DateTime.UtcNow, personName = "Budi", personNik = "123", personDepartment = "IT",
-        destinationLocation = "HQ", approverName = "Siti",
+        destinationBusinessUnit = "HQ", approverName = "Siti",
         items = new[] { new { assetId, quantity = qty, requestJustification = "needed", requiredDuration = "1 month", intendedPurpose = "work" } }
     };
 

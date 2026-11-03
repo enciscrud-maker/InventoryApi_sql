@@ -80,9 +80,9 @@ public static class DbSeeder
     private static async Task SeedSampleAsync(AppDbContext db, CancellationToken ct)
     {
         if (await db.Categories.AnyAsync(ct)) return;
-        var hq = new MdLocation { LocationCode = "HQ-JKT", LocationName = "Head Office Jakarta", BusinessUnit = "Corporate", IsActive = true };
-        var wh = new MdLocation { LocationCode = "WH-01", LocationName = "Main Warehouse", BusinessUnit = "Logistics", IsActive = true };
-        db.Locations.AddRange(hq, wh);
+        var hq = new MdBusinessUnit { BusUnitCode = "HQ-JKT", BusUnitPrefix = "HQ", LocatioName = "Head Office Jakarta", IsActive = true };
+        var wh = new MdBusinessUnit { BusUnitCode = "WH-01", BusUnitPrefix = "WH", LocatioName = "Main Warehouse", IsActive = true };
+        db.BusinessUnits.AddRange(hq, wh);
 
         var cat = new MdCategory { CatName = "Electronics", CatCode = "ELC", CatPrefix = "EL", IsActive = true };
         db.Categories.Add(cat); await db.SaveChangesAsync(ct);
@@ -99,13 +99,13 @@ public static class DbSeeder
         {
             CatId = cat.CatId, GroupId = grp.GroupId, TypeId = typ.TypeId, BrandId = lenovo.BrandId, AssetName = "Lenovo ThinkPad T14",
             AssetType = AssetType.In, AssetStatus = "Active", AssetPrefix = "LPT-0001", CreatedDt = DateTime.UtcNow, Quantity = 10, UnitOfMeasure = "unit",
-            LocationId = wh.LocationId, ConditionId = good.ConditionId, BusinessUnit = wh.BusinessUnit, AssetValue = 18_500_000m
+            BusUnitId = wh.BusUnitId, ConditionId = good.ConditionId, BusinessUnit = "Logistics", AssetValue = 18_500_000m
         };
         var asset2 = new MdAsset
         {
             CatId = cat.CatId, GroupId = grp.GroupId, TypeId = typ.TypeId, BrandId = dell.BrandId, AssetName = "Dell Latitude 5440",
             AssetType = AssetType.In, AssetStatus = "Active", AssetPrefix = "LPT-0002", CreatedDt = DateTime.UtcNow, Quantity = 5, UnitOfMeasure = "unit",
-            LocationId = hq.LocationId, ConditionId = good.ConditionId, BusinessUnit = hq.BusinessUnit, AssetValue = 16_000_000m
+            BusUnitId = hq.BusUnitId, ConditionId = good.ConditionId, BusinessUnit = "Corporate", AssetValue = 16_000_000m
         };
         db.Assets.AddRange(asset, asset2); await db.SaveChangesAsync(ct);
         db.Models.AddRange(

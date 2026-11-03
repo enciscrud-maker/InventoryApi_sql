@@ -23,7 +23,7 @@ public class TrGood
     public string PersonName { get; set; } = string.Empty;
     public string PersonNik { get; set; } = string.Empty;
     public string PersonDepartment { get; set; } = string.Empty;
-    public string DestinationLocation { get; set; } = string.Empty;
+    public string DestinationBusinessUnit { get; set; } = string.Empty;
     public string? RequestNumber { get; set; }
     public string ApproverName { get; set; } = string.Empty;
     public string? InventoryNotes { get; set; }

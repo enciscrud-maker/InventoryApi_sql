@@ -28,7 +28,7 @@ public class TrStockOpnameConfiguration : IEntityTypeConfiguration<TrStockOpname
         b.Property(x => x.StockOpnameNumber).HasColumnName("StockOpnameNumber").HasMaxLength(50).IsRequired();
         b.Property(x => x.AuditDate).HasColumnName("AuditDate");
         b.Property(x => x.BusinessUnit).HasColumnName("BusinessUnit").HasMaxLength(100);
-        b.Property(x => x.LocationId).HasColumnName("LocationId");
+        b.Property(x => x.BusUnitId).HasColumnName("BusUnitId");
         b.Property(x => x.UpdatedDt).HasColumnName("UpdatedDt");
         b.Fk(x => x.User, x => x.UserId);
         b.Fk(x => x.Asset, x => x.AssetId);
@@ -36,7 +36,7 @@ public class TrStockOpnameConfiguration : IEntityTypeConfiguration<TrStockOpname
         b.Fk(x => x.Brand, x => x.BrandId);
         b.Fk(x => x.Group, x => x.GroupId);
         b.Fk(x => x.Type, x => x.TypeId);
-        b.Fk(x => x.Location, x => x.LocationId, false);
+        b.Fk(x => x.BusUnit, x => x.BusUnitId, false);
         b.HasIndex(x => x.StockOpnameNumber).IsUnique();
         b.HasMany(x => x.Details).WithOne(d => d.StockOpname).HasForeignKey(d => d.StockOpnameId).OnDelete(DeleteBehavior.Restrict);
     }

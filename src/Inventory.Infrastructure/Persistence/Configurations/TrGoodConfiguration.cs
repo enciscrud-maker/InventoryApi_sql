@@ -34,7 +34,7 @@ public class TrGoodConfiguration : IEntityTypeConfiguration<TrGood>
         b.Property(x => x.PersonName).HasColumnName("PersonName").HasMaxLength(200).IsRequired();
         b.Property(x => x.PersonNik).HasColumnName("PersonNik").HasMaxLength(50).IsRequired();
         b.Property(x => x.PersonDepartment).HasColumnName("PersonDepartment").HasMaxLength(100).IsRequired();
-        b.Property(x => x.DestinationLocation).HasColumnName("DestinationLocation").HasMaxLength(200).IsRequired();
+        b.Property(x => x.DestinationBusinessUnit).HasColumnName("DestinationBusinessUnit").HasMaxLength(200).IsRequired();
         b.Property(x => x.RequestNumber).HasColumnName("RequestNumber").HasMaxLength(100);
         b.Property(x => x.ApproverName).HasColumnName("ApproverName").HasMaxLength(200).IsRequired();
         b.Property(x => x.InventoryNotes).HasColumnName("InventoryNotes").HasMaxLength(1000);

@@ -17,7 +17,7 @@ public class TrStockOpname
     public string StockOpnameNumber { get; set; } = string.Empty;
     public DateTime AuditDate { get; set; }
     public string? BusinessUnit { get; set; }
-    public int? LocationId { get; set; }
+    public int? BusUnitId { get; set; }
     public DateTime? UpdatedDt { get; set; }
     public MdUser User { get; set; } = null!;
     public MdAsset Asset { get; set; } = null!;
@@ -25,6 +25,6 @@ public class TrStockOpname
     public MdBrand Brand { get; set; } = null!;
     public MdGroup Group { get; set; } = null!;
     public MdType Type { get; set; } = null!;
-    public MdLocation? Location { get; set; }
+    public MdBusinessUnit? BusUnit { get; set; }
     public ICollection<TrStockOpnameDetail> Details { get; set; } = new List<TrStockOpnameDetail>();
 }

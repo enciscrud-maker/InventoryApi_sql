@@ -98,13 +98,13 @@ public class ModelRequestValidator : AbstractValidator<ModelRequest>
         RuleFor(x => x.ModelCode).NotEmpty().MaximumLength(30);
     }
 }
-public class LocationRequestValidator : AbstractValidator<LocationRequest>
+public class BusinessUnitRequestValidator : AbstractValidator<BusinessUnitRequest>
 {
-    public LocationRequestValidator()
+    public BusinessUnitRequestValidator()
     {
-        RuleFor(x => x.LocationCode).NotEmpty().MaximumLength(30);
-        RuleFor(x => x.LocationName).NotEmpty().MaximumLength(150);
-        RuleFor(x => x.BusinessUnit).MaximumLength(100);
+        RuleFor(x => x.BusUnitCode).NotEmpty().MaximumLength(30);
+        RuleFor(x => x.BusUnitPrefix).NotEmpty().MaximumLength(20);
+        RuleFor(x => x.LocatioName).NotEmpty().MaximumLength(150);
     }
 }
 public class ConditionRequestValidator : AbstractValidator<ConditionRequest>
@@ -137,12 +137,12 @@ public class AssetRequestValidator : AbstractValidator<AssetRequest>
         RuleFor(x => x.BusinessUnit).MaximumLength(100);
     }
 }
-public class BulkLocationRequestValidator : AbstractValidator<BulkLocationRequest>
+public class BulkBusinessUnitRequestValidator : AbstractValidator<BulkBusinessUnitRequest>
 {
-    public BulkLocationRequestValidator()
+    public BulkBusinessUnitRequestValidator()
     {
         RuleFor(x => x.AssetIds).NotEmpty().Must(l => l.Count <= 1000).WithMessage("A maximum of 1000 assets per request is allowed.");
-        RuleFor(x => x.LocationId).GreaterThan(0);
+        RuleFor(x => x.BusUnitId).GreaterThan(0);
         RuleFor(x => x.BusinessUnit).MaximumLength(100);
     }
 }
@@ -177,7 +177,7 @@ public class GoodCreateRequestValidator : AbstractValidator<GoodCreateRequest>
         RuleFor(x => x.PersonName).NotEmpty().MaximumLength(200);
         RuleFor(x => x.PersonNik).NotEmpty().MaximumLength(50);
         RuleFor(x => x.PersonDepartment).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.DestinationLocation).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.DestinationBusinessUnit).NotEmpty().MaximumLength(200);
         RuleFor(x => x.RequestNumber).MaximumLength(100);
         RuleFor(x => x.ApproverName).NotEmpty().MaximumLength(200);
         RuleFor(x => x.InventoryNotes).MaximumLength(1000);

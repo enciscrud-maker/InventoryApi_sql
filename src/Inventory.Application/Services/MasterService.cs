@@ -184,24 +184,25 @@ public class ModelService(IAppDbContext db, IHierarchyValidator h) : MasterServi
     protected override Task<bool> IsReferencedAsync(int id, CancellationToken ct) => Task.FromResult(false); // nothing references MD_Model
 }
 
-public class LocationService(IAppDbContext db, IHierarchyValidator h) : MasterService<MdLocation, LocationRequest, LocationDto>(db, h)
+public class BusinessUnitService(IAppDbContext db, IHierarchyValidator h) : MasterService<MdBusinessUnit, BusinessUnitRequest, BusinessUnitDto>(db, h)
 {
-    protected override DbSet<MdLocation> Set => Db.Locations;
-    protected override string Label => "Location";
-    protected override IQueryable<MdLocation> ApplySearch(IQueryable<MdLocation> q, string s) => q.Where(x => x.LocationName.Contains(s) || x.LocationCode.Contains(s));
-    protected override IQueryable<MdLocation> ApplySort(IQueryable<MdLocation> q, string? s, bool d) => s switch
-    { "name" => q.OrderByDir(x => x.LocationName, d), "code" => q.OrderByDir(x => x.LocationCode, d), _ => q.OrderByDir(x => x.LocationId, d) };
-    protected override LocationDto ToDto(MdLocation e) => new(e.LocationId, e.LocationCode, e.LocationName, e.BusinessUnit, e.IsActive);
-    protected override MdLocation Create() => new();
-    protected override async Task ApplyAsync(MdLocation e, LocationRequest r, int? id, CancellationToken ct)
+    protected override DbSet<MdBusinessUnit> Set => Db.BusinessUnits;
+    protected override string Label => "Business unit";
+    protected override IQueryable<MdBusinessUnit> ApplySearch(IQueryable<MdBusinessUnit> q, string s) =>
+        q.Where(x => x.LocatioName.Contains(s) || x.BusUnitCode.Contains(s) || x.BusUnitPrefix.Contains(s));
+    protected override IQueryable<MdBusinessUnit> ApplySort(IQueryable<MdBusinessUnit> q, string? s, bool d) => s switch
+    { "name" => q.OrderByDir(x => x.LocatioName, d), "code" => q.OrderByDir(x => x.BusUnitCode, d), "prefix" => q.OrderByDir(x => x.BusUnitPrefix, d), _ => q.OrderByDir(x => x.BusUnitId, d) };
+    protected override BusinessUnitDto ToDto(MdBusinessUnit e) => new(e.BusUnitId, e.BusUnitCode, e.BusUnitPrefix, e.LocatioName, e.IsActive);
+    protected override MdBusinessUnit Create() => new();
+    protected override async Task ApplyAsync(MdBusinessUnit e, BusinessUnitRequest r, int? id, CancellationToken ct)
     {
         var self = id ?? 0;
-        Unique(await Db.Locations.AnyAsync(x => x.LocationCode == r.LocationCode && x.LocationId != self, ct), "LocationCode", r.LocationCode);
-        e.LocationCode = r.LocationCode.Trim(); e.LocationName = r.LocationName.Trim(); e.BusinessUnit = r.BusinessUnit?.Trim(); e.IsActive = r.IsActive;
+        Unique(await Db.BusinessUnits.AnyAsync(x => x.BusUnitCode == r.BusUnitCode && x.BusUnitId != self, ct), "BusUnitCode", r.BusUnitCode);
+        e.BusUnitCode = r.BusUnitCode.Trim(); e.BusUnitPrefix = r.BusUnitPrefix.Trim(); e.LocatioName = r.LocatioName.Trim(); e.IsActive = r.IsActive;
     }
     protected override async Task<bool> IsReferencedAsync(int id, CancellationToken ct) =>
-        await Db.Assets.AnyAsync(x => x.LocationId == id, ct) || await Db.StockOpnames.AnyAsync(x => x.LocationId == id, ct)
-        || await Db.StockOpnameDetails.AnyAsync(x => x.ActualLocationId == id, ct);
+        await Db.Assets.AnyAsync(x => x.BusUnitId == id, ct) || await Db.StockOpnames.AnyAsync(x => x.BusUnitId == id, ct)
+        || await Db.StockOpnameDetails.AnyAsync(x => x.ActualBusUnitId == id, ct);
 }
 
 public class ConditionService(IAppDbContext db, IHierarchyValidator h) : MasterService<MdAssetCondition, ConditionRequest, ConditionDto>(db, h)

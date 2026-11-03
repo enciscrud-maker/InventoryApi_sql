@@ -40,7 +40,7 @@ builder.Services.AddScoped<IMasterService<GroupRequest, GroupDto>, GroupService>
 builder.Services.AddScoped<IMasterService<TypeRequest, TypeDto>, TypeService>();
 builder.Services.AddScoped<IMasterService<BrandRequest, BrandDto>, BrandService>();
 builder.Services.AddScoped<IMasterService<ModelRequest, ModelDto>, ModelService>();
-builder.Services.AddScoped<IMasterService<LocationRequest, LocationDto>, LocationService>();
+builder.Services.AddScoped<IMasterService<BusinessUnitRequest, BusinessUnitDto>, BusinessUnitService>();
 builder.Services.AddScoped<IMasterService<ConditionRequest, ConditionDto>, ConditionService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<EmployeeService>();

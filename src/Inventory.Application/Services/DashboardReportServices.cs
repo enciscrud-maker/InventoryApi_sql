@@ -45,7 +45,7 @@ public class ReportService(AssetService assets, GoodService goods, AuditService 
             case "audits":
             {
                 var items = await audits.Filtered(ToAuditQuery(q)).OrderByDescending(a => a.AuditDate).Select(a => new AuditListItemDto(a.StockOpnameId, a.StockOpnameNumber, a.StockOpnameName,
-                    a.AuditDate, a.StockOpnameType, a.StockOpnameStatus, a.BusinessUnit, a.LocationId, a.Details.Count(), a.Details.Count(d => d.PhysicalQuantity != d.SystemQuantity))).ToListAsync(ct);
+                    a.AuditDate, a.StockOpnameType, a.StockOpnameStatus, a.BusinessUnit, a.BusUnitId, a.Details.Count(), a.Details.Count(d => d.PhysicalQuantity != d.SystemQuantity))).ToListAsync(ct);
                 var bytes = ExcelHelper.Build("Audits", new[] { "StockOpnameNumber", "Name", "AuditDate (UTC)", "Type", "Status", "BusinessUnit", "Items", "Discrepancies" },
                     items.Select(i => new object?[] { i.StockOpnameNumber, i.StockOpnameName, i.AuditDate, i.StockOpnameType, i.StockOpnameStatus, i.BusinessUnit, i.ItemCount, i.DiscrepancyCount }));
                 return (bytes, $"audits-{stamp}.xlsx");
@@ -64,6 +64,6 @@ public class ReportService(AssetService assets, GoodService goods, AuditService 
     private static AuditQuery ToAuditQuery(ReportQuery q) => new()
     {
         Page = q.Page, PageSize = q.PageSize, Search = q.Search, SortBy = q.SortBy, SortDir = q.SortDir,
-        Status = q.AuditStatus, From = q.From, To = q.To, LocationId = q.LocationId, BusinessUnit = q.BusinessUnit
+        Status = q.AuditStatus, From = q.From, To = q.To, BusUnitId = q.BusUnitId, BusinessUnit = q.BusinessUnit
     };
 }

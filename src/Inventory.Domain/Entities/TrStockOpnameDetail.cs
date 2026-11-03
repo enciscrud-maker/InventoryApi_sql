@@ -7,12 +7,12 @@ public class TrStockOpnameDetail
     public int AssetId { get; set; }
     public int SystemQuantity { get; set; }
     public int PhysicalQuantity { get; set; }
-    public int? ActualLocationId { get; set; }
+    public int? ActualBusUnitId { get; set; }
     public string? Finding { get; set; }
     public bool IsConfirmed { get; set; }
     public string? Notes { get; set; }
     public string? EvidencePath { get; set; }
     public TrStockOpname StockOpname { get; set; } = null!;
     public MdAsset Asset { get; set; } = null!;
-    public MdLocation? ActualLocation { get; set; }
+    public MdBusinessUnit? ActualBusUnit { get; set; }
 }
