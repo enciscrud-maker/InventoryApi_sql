@@ -32,7 +32,7 @@ services:
       ConnectionStrings__DefaultConnection: "Server=sql,1433;Database=InventoryDb;User Id=sa;Password=${SA_PASSWORD:-Your_strong_Passw0rd};TrustServerCertificate=True;Encrypt=False"
       Jwt__Key: "${JWT_KEY:-CHANGE-ME-dev-only-key-at-least-32-characters-long!}"
       Swagger__Enabled: "true"
-      Seed__SampleData: "true"
+      Seed__SampleData: "false"
       Seed__AdminPassword: "${ADMIN_PASSWORD:-Admin#12345}"
       Storage__RootPath: "/app/uploads"
       Cors__Origins__0: "http://localhost:3000"
