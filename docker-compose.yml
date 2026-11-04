@@ -29,7 +29,7 @@ services:
       - "${API_HOST_PORT:-8080}:8080"
     environment:
       ASPNETCORE_ENVIRONMENT: "Production"
-      ConnectionStrings__DefaultConnection: "Server=sql,1433;Database=InventoryDb;User Id=sa;Password=${SA_PASSWORD:-Your_strong_Passw0rd};TrustServerCertificate=True;Encrypt=False"
+      ConnectionStrings__DefaultConnection: "Server=sql,1433;Database=${DATABASE_NAME:-InventoryApiDocker};User Id=sa;Password=${SA_PASSWORD:-Your_strong_Passw0rd};TrustServerCertificate=True;Encrypt=False"
       Jwt__Key: "${JWT_KEY:-CHANGE-ME-dev-only-key-at-least-32-characters-long!}"
       Swagger__Enabled: "true"
       Seed__SampleData: "false"

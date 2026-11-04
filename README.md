@@ -32,6 +32,7 @@ Perubahan skema tidak diterapkan ke database lama oleh `EnsureCreated`; buat dan
 
 ### Konfigurasi produksi
 - `Jwt__Key` (>= 32 karakter, WAJIB diganti), `ConnectionStrings__DefaultConnection`.
+- Docker Compose memakai database `InventoryApiDocker` secara default (`DATABASE_NAME` untuk mengubahnya), agar tidak memakai database lama dengan skema yang tidak cocok.
 - `Seed__AdminPassword` mengisi admin awal; kosong = admin tidak dibuat. `Seed__SampleData=false`.
 - `Cors:Origins` untuk domain frontend Next.js, `Storage:RootPath` untuk lampiran.
 
