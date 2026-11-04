@@ -12,6 +12,8 @@ public interface IAppDbContext
     DbSet<MdModel> Models { get; }
     DbSet<MdAsset> Assets { get; }
     DbSet<MdBusinessUnit> BusinessUnits { get; }
+    DbSet<MdLocation> Locations { get; }
+    DbSet<MdAssetStatus> AssetStatuses { get; }
     DbSet<MdAssetCondition> Conditions { get; }
     DbSet<MdEmployee> Employees { get; }
     DbSet<MdUser> Users { get; }

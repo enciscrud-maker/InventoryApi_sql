@@ -104,7 +104,22 @@ public class BusinessUnitRequestValidator : AbstractValidator<BusinessUnitReques
     {
         RuleFor(x => x.BusUnitCode).NotEmpty().MaximumLength(30);
         RuleFor(x => x.BusUnitPrefix).NotEmpty().MaximumLength(20);
-        RuleFor(x => x.LocatioName).NotEmpty().MaximumLength(150);
+    }
+}
+public class LocationRequestValidator : AbstractValidator<LocationRequest>
+{
+    public LocationRequestValidator()
+    {
+        RuleFor(x => x.BusUnitId).GreaterThan(0);
+        RuleFor(x => x.LocationName).NotEmpty().MaximumLength(150);
+    }
+}
+public class AssetStatusRequestValidator : AbstractValidator<AssetStatusRequest>
+{
+    public AssetStatusRequestValidator()
+    {
+        RuleFor(x => x.StatusCode).NotEmpty().MaximumLength(30);
+        RuleFor(x => x.StatusName).NotEmpty().MaximumLength(100);
     }
 }
 public class ConditionRequestValidator : AbstractValidator<ConditionRequest>
@@ -124,7 +139,7 @@ public class AssetRequestValidator : AbstractValidator<AssetRequest>
         RuleFor(x => x.TypeId).GreaterThan(0); RuleFor(x => x.BrandId).GreaterThan(0);
         RuleFor(x => x.AssetName).NotEmpty().MaximumLength(200);
         RuleFor(x => x.AssetType).IsInEnum();
-        RuleFor(x => x.AssetStatus).NotEmpty().MaximumLength(50);
+        RuleFor(x => x.StatusId).GreaterThan(0);
         RuleFor(x => x.AssetPrefix).NotEmpty().MaximumLength(50);
         RuleFor(x => x.Quantity).GreaterThanOrEqualTo(0).When(x => x.Quantity.HasValue);
         RuleFor(x => x.UnitOfMeasure).MaximumLength(30);

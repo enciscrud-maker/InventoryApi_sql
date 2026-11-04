@@ -189,20 +189,56 @@ public class BusinessUnitService(IAppDbContext db, IHierarchyValidator h) : Mast
     protected override DbSet<MdBusinessUnit> Set => Db.BusinessUnits;
     protected override string Label => "Business unit";
     protected override IQueryable<MdBusinessUnit> ApplySearch(IQueryable<MdBusinessUnit> q, string s) =>
-        q.Where(x => x.LocatioName.Contains(s) || x.BusUnitCode.Contains(s) || x.BusUnitPrefix.Contains(s));
+        q.Where(x => x.BusUnitCode.Contains(s) || x.BusUnitPrefix.Contains(s));
     protected override IQueryable<MdBusinessUnit> ApplySort(IQueryable<MdBusinessUnit> q, string? s, bool d) => s switch
-    { "name" => q.OrderByDir(x => x.LocatioName, d), "code" => q.OrderByDir(x => x.BusUnitCode, d), "prefix" => q.OrderByDir(x => x.BusUnitPrefix, d), _ => q.OrderByDir(x => x.BusUnitId, d) };
-    protected override BusinessUnitDto ToDto(MdBusinessUnit e) => new(e.BusUnitId, e.BusUnitCode, e.BusUnitPrefix, e.LocatioName, e.IsActive);
+    { "code" => q.OrderByDir(x => x.BusUnitCode, d), "prefix" => q.OrderByDir(x => x.BusUnitPrefix, d), _ => q.OrderByDir(x => x.BusUnitId, d) };
+    protected override BusinessUnitDto ToDto(MdBusinessUnit e) => new(e.BusUnitId, e.BusUnitCode, e.BusUnitPrefix, e.IsActive);
     protected override MdBusinessUnit Create() => new();
     protected override async Task ApplyAsync(MdBusinessUnit e, BusinessUnitRequest r, int? id, CancellationToken ct)
     {
         var self = id ?? 0;
         Unique(await Db.BusinessUnits.AnyAsync(x => x.BusUnitCode == r.BusUnitCode && x.BusUnitId != self, ct), "BusUnitCode", r.BusUnitCode);
-        e.BusUnitCode = r.BusUnitCode.Trim(); e.BusUnitPrefix = r.BusUnitPrefix.Trim(); e.LocatioName = r.LocatioName.Trim(); e.IsActive = r.IsActive;
+        e.BusUnitCode = r.BusUnitCode.Trim(); e.BusUnitPrefix = r.BusUnitPrefix.Trim(); e.IsActive = r.IsActive;
     }
     protected override async Task<bool> IsReferencedAsync(int id, CancellationToken ct) =>
-        await Db.Assets.AnyAsync(x => x.BusUnitId == id, ct) || await Db.StockOpnames.AnyAsync(x => x.BusUnitId == id, ct)
+        await Db.Locations.AnyAsync(x => x.BusUnitId == id, ct) || await Db.Assets.AnyAsync(x => x.BusUnitId == id, ct) || await Db.StockOpnames.AnyAsync(x => x.BusUnitId == id, ct)
         || await Db.StockOpnameDetails.AnyAsync(x => x.ActualBusUnitId == id, ct);
+}
+
+public class LocationService(IAppDbContext db, IHierarchyValidator h) : MasterService<MdLocation, LocationRequest, LocationDto>(db, h)
+{
+    protected override DbSet<MdLocation> Set => Db.Locations;
+    protected override string Label => "Location";
+    protected override IQueryable<MdLocation> ApplySearch(IQueryable<MdLocation> q, string s) => q.Where(x => x.LocationName.Contains(s));
+    protected override IQueryable<MdLocation> ApplySort(IQueryable<MdLocation> q, string? s, bool d) => s switch
+    { "name" => q.OrderByDir(x => x.LocationName, d), "businessunit" => q.OrderByDir(x => x.BusUnitId, d), _ => q.OrderByDir(x => x.LocationId, d) };
+    protected override LocationDto ToDto(MdLocation e) => new(e.LocationId, e.BusUnitId, e.LocationName);
+    protected override MdLocation Create() => new();
+    protected override async Task ApplyAsync(MdLocation e, LocationRequest r, int? id, CancellationToken ct)
+    {
+        if (!await Db.BusinessUnits.AnyAsync(x => x.BusUnitId == r.BusUnitId, ct))
+            throw new ValidationFailedException("busUnitId", "Business unit does not exist.");
+        e.BusUnitId = r.BusUnitId; e.LocationName = r.LocationName.Trim();
+    }
+    protected override Task<bool> IsReferencedAsync(int id, CancellationToken ct) => Task.FromResult(false);
+}
+
+public class AssetStatusService(IAppDbContext db, IHierarchyValidator h) : MasterService<MdAssetStatus, AssetStatusRequest, AssetStatusDto>(db, h)
+{
+    protected override DbSet<MdAssetStatus> Set => Db.AssetStatuses;
+    protected override string Label => "Asset status";
+    protected override IQueryable<MdAssetStatus> ApplySearch(IQueryable<MdAssetStatus> q, string s) => q.Where(x => x.StatusName.Contains(s) || x.StatusCode.Contains(s));
+    protected override IQueryable<MdAssetStatus> ApplySort(IQueryable<MdAssetStatus> q, string? s, bool d) => s switch
+    { "name" => q.OrderByDir(x => x.StatusName, d), "code" => q.OrderByDir(x => x.StatusCode, d), _ => q.OrderByDir(x => x.StatusId, d) };
+    protected override AssetStatusDto ToDto(MdAssetStatus e) => new(e.StatusId, e.StatusCode, e.StatusName, e.IsActive);
+    protected override MdAssetStatus Create() => new();
+    protected override async Task ApplyAsync(MdAssetStatus e, AssetStatusRequest r, int? id, CancellationToken ct)
+    {
+        var self = id ?? 0;
+        Unique(await Db.AssetStatuses.AnyAsync(x => x.StatusCode == r.StatusCode && x.StatusId != self, ct), "StatusCode", r.StatusCode);
+        e.StatusCode = r.StatusCode.Trim(); e.StatusName = r.StatusName.Trim(); e.IsActive = r.IsActive;
+    }
+    protected override Task<bool> IsReferencedAsync(int id, CancellationToken ct) => Db.Assets.AnyAsync(x => x.StatusId == id, ct);
 }
 
 public class ConditionService(IAppDbContext db, IHierarchyValidator h) : MasterService<MdAssetCondition, ConditionRequest, ConditionDto>(db, h)

@@ -53,14 +53,36 @@ public class AuthAndRbacTests(ApiFixture fx)
     }
 
     [Fact]
+    public async Task Business_unit_has_multiple_locations_and_asset_status_cannot_be_deleted()
+    {
+        var admin = await fx.AdminAsync();
+        var code = "BU" + Guid.NewGuid().ToString("N")[..8];
+        var businessUnit = await J(await admin.PostAsJsonAsync("/api/business-units", new { busUnitCode = code, busUnitPrefix = "BU" }));
+        var busUnitId = businessUnit["busUnitId"]!.GetValue<int>();
+        var firstLocation = await admin.PostAsJsonAsync("/api/locations", new { busUnitId, locationName = "Location A" });
+        var secondLocation = await admin.PostAsJsonAsync("/api/locations", new { busUnitId, locationName = "Location B" });
+        firstLocation.StatusCode.Should().Be(HttpStatusCode.Created);
+        secondLocation.StatusCode.Should().Be(HttpStatusCode.Created);
+        (await J(firstLocation))["busUnitId"]!.GetValue<int>().Should().Be(busUnitId);
+        (await J(secondLocation))["busUnitId"]!.GetValue<int>().Should().Be(busUnitId);
+
+        var statuses = await J(await admin.GetAsync("/api/asset-statuses?search=Active"));
+        var statusId = statuses["items"]![0]!["statusId"]!.GetValue<int>();
+        await fx.CreateAssetAsync(admin, 1);
+        (await admin.DeleteAsync($"/api/asset-statuses/{statusId}")).StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
+    [Fact]
     public async Task Hierarchy_mismatch_is_rejected()
     {
         var admin = await fx.AdminAsync();
         var h = await fx.SeedHierarchyAsync(admin);
         var otherCat = await J(await admin.PostAsJsonAsync("/api/categories", new { catName = "Other", catCode = "O" + Guid.NewGuid().ToString("N")[..8], catPrefix = "OT" }));
+        var statuses = await J(await admin.GetAsync("/api/asset-statuses?search=Active"));
+        var statusId = statuses["items"]![0]!["statusId"]!.GetValue<int>();
         var res = await admin.PostAsJsonAsync("/api/assets", new
         {
-            catId = otherCat["catId"]!.GetValue<int>(), groupId = h.Group, typeId = h.Type, brandId = h.Brand, assetName = "x", assetType = "In", assetStatus = "Active", assetPrefix = "H-" + Guid.NewGuid().ToString("N")[..8]
+            catId = otherCat["catId"]!.GetValue<int>(), groupId = h.Group, typeId = h.Type, brandId = h.Brand, assetName = "x", assetType = "In", statusId, assetPrefix = "H-" + Guid.NewGuid().ToString("N")[..8]
         });
         res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }

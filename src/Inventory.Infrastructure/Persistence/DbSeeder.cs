@@ -51,6 +51,8 @@ public static class DbSeeder
         foreach (var (code, name) in conditions)
             if (!await db.Conditions.AnyAsync(c => c.ConditionCode == code, ct))
                 db.Conditions.Add(new MdAssetCondition { ConditionCode = code, ConditionName = name, IsActive = true });
+        if (!await db.AssetStatuses.AnyAsync(s => s.StatusCode == "ACTIVE", ct))
+            db.AssetStatuses.Add(new MdAssetStatus { StatusCode = "ACTIVE", StatusName = "Active", IsActive = true });
         await db.SaveChangesAsync(ct);
     }
 
@@ -80,9 +82,13 @@ public static class DbSeeder
     private static async Task SeedSampleAsync(AppDbContext db, CancellationToken ct)
     {
         if (await db.Categories.AnyAsync(ct)) return;
-        var hq = new MdBusinessUnit { BusUnitCode = "HQ-JKT", BusUnitPrefix = "HQ", LocatioName = "Head Office Jakarta", IsActive = true };
-        var wh = new MdBusinessUnit { BusUnitCode = "WH-01", BusUnitPrefix = "WH", LocatioName = "Main Warehouse", IsActive = true };
+        var hq = new MdBusinessUnit { BusUnitCode = "HQ-JKT", BusUnitPrefix = "HQ", IsActive = true };
+        var wh = new MdBusinessUnit { BusUnitCode = "WH-01", BusUnitPrefix = "WH", IsActive = true };
         db.BusinessUnits.AddRange(hq, wh);
+        await db.SaveChangesAsync(ct);
+        db.Locations.AddRange(
+            new MdLocation { BusUnitId = hq.BusUnitId, LocationName = "Head Office Jakarta" },
+            new MdLocation { BusUnitId = wh.BusUnitId, LocationName = "Main Warehouse" });
 
         var cat = new MdCategory { CatName = "Electronics", CatCode = "ELC", CatPrefix = "EL", IsActive = true };
         db.Categories.Add(cat); await db.SaveChangesAsync(ct);
@@ -95,16 +101,17 @@ public static class DbSeeder
         db.Brands.AddRange(lenovo, dell); await db.SaveChangesAsync(ct);
 
         var good = await db.Conditions.FirstAsync(c => c.ConditionCode == "GOOD", ct);
+        var active = await db.AssetStatuses.FirstAsync(s => s.StatusCode == "ACTIVE", ct);
         var asset = new MdAsset
         {
             CatId = cat.CatId, GroupId = grp.GroupId, TypeId = typ.TypeId, BrandId = lenovo.BrandId, AssetName = "Lenovo ThinkPad T14",
-            AssetType = AssetType.In, AssetStatus = "Active", AssetPrefix = "LPT-0001", CreatedDt = DateTime.UtcNow, Quantity = 10, UnitOfMeasure = "unit",
+            AssetType = AssetType.In, StatusId = active.StatusId, AssetPrefix = "LPT-0001", CreatedDt = DateTime.UtcNow, Quantity = 10, UnitOfMeasure = "unit",
             BusUnitId = wh.BusUnitId, ConditionId = good.ConditionId, BusinessUnit = "Logistics", AssetValue = 18_500_000m
         };
         var asset2 = new MdAsset
         {
             CatId = cat.CatId, GroupId = grp.GroupId, TypeId = typ.TypeId, BrandId = dell.BrandId, AssetName = "Dell Latitude 5440",
-            AssetType = AssetType.In, AssetStatus = "Active", AssetPrefix = "LPT-0002", CreatedDt = DateTime.UtcNow, Quantity = 5, UnitOfMeasure = "unit",
+            AssetType = AssetType.In, StatusId = active.StatusId, AssetPrefix = "LPT-0002", CreatedDt = DateTime.UtcNow, Quantity = 5, UnitOfMeasure = "unit",
             BusUnitId = hq.BusUnitId, ConditionId = good.ConditionId, BusinessUnit = "Corporate", AssetValue = 16_000_000m
         };
         db.Assets.AddRange(asset, asset2); await db.SaveChangesAsync(ct);

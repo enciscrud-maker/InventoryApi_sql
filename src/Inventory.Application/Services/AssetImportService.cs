@@ -33,6 +33,7 @@ public class AssetImportService(IAppDbContext db)
         var groups = await db.Groups.AsNoTracking().ToListAsync(ct);
         var types = await db.Types.AsNoTracking().ToListAsync(ct);
         var brands = await db.Brands.AsNoTracking().ToListAsync(ct);
+        var statuses = await db.AssetStatuses.AsNoTracking().ToListAsync(ct);
         var catById = cats.ToDictionary(x => x.CatId); var catByCode = cats.ToDictionary(x => x.CatCode, StringComparer.OrdinalIgnoreCase);
         var grpById = groups.ToDictionary(x => x.GroupId); var grpByCode = groups.ToDictionary(x => x.GroupCode, StringComparer.OrdinalIgnoreCase);
         var typById = types.ToDictionary(x => x.TypeId); var typByCode = types.ToDictionary(x => x.TypeCode, StringComparer.OrdinalIgnoreCase);
@@ -63,8 +64,11 @@ public class AssetImportService(IAppDbContext db)
 
             var name = Get(c, "asset_name");
             if (name.Length == 0) errs.Add("asset_name is required."); else if (name.Length > 200) errs.Add("asset_name exceeds 200 characters.");
-            var status = Get(c, "asset_status");
-            if (status.Length == 0) errs.Add("asset_status is required."); else if (status.Length > 50) errs.Add("asset_status exceeds 50 characters.");
+            var statusText = Get(c, "asset_status");
+            var status = statuses.FirstOrDefault(s => s.StatusCode.Equals(statusText, StringComparison.OrdinalIgnoreCase)
+                || s.StatusName.Equals(statusText, StringComparison.OrdinalIgnoreCase));
+            if (statusText.Length == 0) errs.Add("asset_status is required.");
+            else if (status is null) errs.Add($"asset_status '{statusText}' does not exist.");
 
             AssetType type = default;
             var typeText = Get(c, "asset_type");
@@ -84,7 +88,7 @@ public class AssetImportService(IAppDbContext db)
             valid.Add(new MdAsset
             {
                 CatId = cat!.CatId, GroupId = grp!.GroupId, TypeId = typ!.TypeId, BrandId = brd!.BrandId,
-                AssetName = name, AssetType = type, AssetStatus = status, AssetPrefix = prefix,
+                AssetName = name, AssetType = type, StatusId = status!.StatusId, AssetPrefix = prefix,
                 Quantity = 0, CreatedDt = now // never trust quantity / audit fields from the file
             });
         }

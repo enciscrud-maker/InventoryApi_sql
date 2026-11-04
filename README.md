@@ -54,4 +54,4 @@ Cakupan: login/refresh, RBAC (401/403), validasi hierarki, import CSV/XLSX, stok
 12. Kolom `CFG_ModelRole.model_id` memakai snake_case persis seperti ERD, sedangkan `CFG_ModelPermission.ModelId` PascalCase.
 
 ## Endpoint
-Semua ada di Swagger (enum dan TransactionType didokumentasikan). Ringkas: `/api/auth/*`, `/api/employees`, `/api/users`, `/api/roles`, `/api/permissions`, `/api/assets` (+ `bulk-business-unit`, `import`, `export`, `import-template`), master (`/api/categories`, `asset-groups`, `asset-types`, `brands`, `asset-models`, `business-units`, `asset-conditions`), `/api/goods-in`, `/api/goods-out`, `/api/stock-audits`, `/api/dashboard/summary`, `/api/reports/*`.
+Semua ada di Swagger (enum dan TransactionType didokumentasikan). Ringkas: `/api/auth/*`, `/api/employees`, `/api/users`, `/api/roles`, `/api/permissions`, `/api/assets` (+ `bulk-business-unit`, `import`, `export`, `import-template`), master (`/api/categories`, `asset-groups`, `asset-types`, `brands`, `asset-models`, `business-units`, `locations`, `asset-statuses`, `asset-conditions`), `/api/goods-in`, `/api/goods-out`, `/api/stock-audits`, `/api/dashboard/summary`, `/api/reports/*`.

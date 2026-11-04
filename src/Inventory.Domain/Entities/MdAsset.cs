@@ -9,7 +9,7 @@ public class MdAsset
     public int TypeId { get; set; }
     public string AssetName { get; set; } = string.Empty;
     public AssetType AssetType { get; set; }
-    public string AssetStatus { get; set; } = string.Empty;
+    public int StatusId { get; set; }
     public string AssetPrefix { get; set; } = string.Empty;
     public DateTime CreatedDt { get; set; }
     public int Quantity { get; set; }
@@ -31,4 +31,5 @@ public class MdAsset
     public MdType Type { get; set; } = null!;
     public MdBusinessUnit? BusUnit { get; set; }
     public MdAssetCondition? Condition { get; set; }
+    public MdAssetStatus Status { get; set; } = null!;
 }

@@ -13,7 +13,6 @@ public class MdBusinessUnitConfiguration : IEntityTypeConfiguration<MdBusinessUn
         b.Property(x => x.BusUnitId).HasColumnName("BusUnitId").ValueGeneratedOnAdd();
         b.Property(x => x.BusUnitCode).HasColumnName("BusUnitCode").HasMaxLength(30).IsRequired();
         b.Property(x => x.BusUnitPrefix).HasColumnName("BusUnitPrefix").HasMaxLength(20).IsRequired();
-        b.Property(x => x.LocatioName).HasColumnName("LocatioName").HasMaxLength(150).IsRequired();
         b.Property(x => x.IsActive).HasColumnName("IsActive");
         b.HasIndex(x => x.BusUnitCode).IsUnique();
     }

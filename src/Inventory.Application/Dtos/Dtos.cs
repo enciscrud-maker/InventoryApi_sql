@@ -32,19 +32,23 @@ public record BrandRequest(int? TypeId, string BrandName, string BrandCode, stri
 public record BrandDto(int BrandId, int? TypeId, string BrandName, string BrandCode, string BrandPrefix, bool IsActive);
 public record ModelRequest(int? AssetId, int CatId, int BrandId, int GroupId, int TypeId, string ModelName, string ModelCode, bool IsActive = true);
 public record ModelDto(int ModelId, int? AssetId, int CatId, int BrandId, int GroupId, int TypeId, string ModelName, string ModelCode, bool IsActive);
-public record BusinessUnitRequest(string BusUnitCode, string BusUnitPrefix, string LocatioName, bool IsActive = true);
-public record BusinessUnitDto(int BusUnitId, string BusUnitCode, string BusUnitPrefix, string LocatioName, bool IsActive);
+public record BusinessUnitRequest(string BusUnitCode, string BusUnitPrefix, bool IsActive = true);
+public record BusinessUnitDto(int BusUnitId, string BusUnitCode, string BusUnitPrefix, bool IsActive);
+public record LocationRequest(int BusUnitId, string LocationName);
+public record LocationDto(int LocationId, int BusUnitId, string LocationName);
+public record AssetStatusRequest(string StatusCode, string StatusName, bool IsActive = true);
+public record AssetStatusDto(int StatusId, string StatusCode, string StatusName, bool IsActive);
 public record ConditionRequest(string ConditionCode, string ConditionName, bool IsActive = true);
 public record ConditionDto(int ConditionId, string ConditionCode, string ConditionName, bool IsActive);
 
 // ---------- Assets ----------
-public record AssetRequest(int CatId, int GroupId, int TypeId, int BrandId, string AssetName, AssetType AssetType, string AssetStatus, string AssetPrefix,
+public record AssetRequest(int CatId, int GroupId, int TypeId, int BrandId, string AssetName, AssetType AssetType, int StatusId, string AssetPrefix,
     int? Quantity, string? UnitOfMeasure, string? SerialNumber, string? AssetTag, string? PurchaseOrderNumber, string? SapMaterialNumber,
     decimal? AssetValue, string? Description, int? BusUnitId, int? ConditionId, string? BusinessUnit, string? RowVersion);
 public record AssetDto(int AssetId, int CatId, string CatName, int GroupId, string GroupName, int TypeId, string TypeName, int BrandId, string BrandName,
-    string AssetName, AssetType AssetType, string AssetStatus, string AssetPrefix, DateTime CreatedDt, int Quantity, string? UnitOfMeasure,
+    string AssetName, AssetType AssetType, int StatusId, string AssetStatus, string AssetPrefix, DateTime CreatedDt, int Quantity, string? UnitOfMeasure,
     string? SerialNumber, string? AssetTag, string? PurchaseOrderNumber, string? SapMaterialNumber, decimal? AssetValue, string? Description,
-    int? BusUnitId, string? LocatioName, int? ConditionId, string? ConditionName, string? BusinessUnit, DateTime? UpdatedDt, string RowVersion);
+    int? BusUnitId, int? ConditionId, string? ConditionName, string? BusinessUnit, DateTime? UpdatedDt, string RowVersion);
 public class AssetQuery : PageQuery
 {
     public int? CatId { get; set; }
@@ -55,7 +59,7 @@ public class AssetQuery : PageQuery
     public string? BusinessUnit { get; set; }
     public int? ConditionId { get; set; }
     public AssetType? AssetType { get; set; }
-    public string? AssetStatus { get; set; }
+    public int? StatusId { get; set; }
 }
 public record BulkBusinessUnitRequest(List<int> AssetIds, int BusUnitId, string? BusinessUnit);
 public record BulkBusinessUnitResult(int UpdatedCount);

@@ -16,6 +16,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<MdModel> Models => Set<MdModel>();
     public DbSet<MdAsset> Assets => Set<MdAsset>();
     public DbSet<MdBusinessUnit> BusinessUnits => Set<MdBusinessUnit>();
+    public DbSet<MdLocation> Locations => Set<MdLocation>();
+    public DbSet<MdAssetStatus> AssetStatuses => Set<MdAssetStatus>();
     public DbSet<MdAssetCondition> Conditions => Set<MdAssetCondition>();
     public DbSet<MdEmployee> Employees => Set<MdEmployee>();
     public DbSet<MdUser> Users => Set<MdUser>();
