@@ -45,6 +45,45 @@ public class AuthAndRbacTests(ApiFixture fx)
     }
 
     [Fact]
+    public async Task User_permissions_can_be_read_and_replaced_as_an_exact_allowlist()
+    {
+        var member = await fx.MemberAsync();
+        var profile = await J(await member.GetAsync("/api/auth/me"));
+        var userId = profile["userId"]!.GetValue<int>();
+        var admin = await fx.AdminAsync();
+
+        (await member.GetAsync($"/api/users/{userId}/permissions")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        var catalog = await J(await admin.GetAsync("/api/permissions"));
+        var assetReadId = catalog.AsArray().Single(p => p!["permissionName"]!.GetValue<string>() == Permissions.AssetRead)!["permissionId"]!.GetValue<int>();
+        var update = await admin.PostAsJsonAsync($"/api/users/{userId}/permissions", new { permissionIds = new[] { assetReadId } });
+        update.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var saved = await J(update);
+        var allowed = saved["permissions"]!.AsArray()
+            .Where(p => p!["isAllowed"]!.GetValue<bool>())
+            .Select(p => p!["permissionName"]!.GetValue<string>());
+        allowed.Should().BeEquivalentTo(new[] { Permissions.AssetRead });
+        saved["permissions"]!.AsArray().Single(p => p!["permissionId"]!.GetValue<int>() == assetReadId)!["isDirectlyAssigned"]!.GetValue<bool>().Should().BeTrue();
+
+        var user = await J(await admin.GetAsync($"/api/users/{userId}"));
+        user["roles"]!.AsArray().Should().BeEmpty();
+
+        var freshMember = await fx.LoginAsync(profile["employeeEmail"]!.GetValue<string>(), "Member#12345");
+        (await freshMember.GetAsync("/api/assets")).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await freshMember.GetAsync("/api/categories")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task User_cannot_remove_their_own_user_management_permission()
+    {
+        var admin = await fx.AdminAsync();
+        var profile = await J(await admin.GetAsync("/api/auth/me"));
+        var response = await admin.PostAsJsonAsync($"/api/users/{profile["userId"]!.GetValue<int>()}/permissions", new { permissionIds = Array.Empty<int>() });
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task Delete_of_referenced_master_is_rejected_with_409()
     {
         var admin = await fx.AdminAsync();

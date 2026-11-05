@@ -34,7 +34,11 @@ public interface IAppDbContext
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
 
-public interface ICurrentUser { int? UserId { get; } }
+public interface ICurrentUser
+{
+    int? UserId { get; }
+    bool HasPermission(string permission);
+}
 
 public interface IPasswordHasher
 {

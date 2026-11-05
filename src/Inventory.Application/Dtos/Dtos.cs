@@ -15,10 +15,13 @@ public record UserCreateRequest(int EmployeeId, string EmployeeEmail, string Pas
 public record UserUpdateRequest(string EmployeeEmail, string? Password, string? ProfilePhotoUrl);
 public record UserStatusRequest(bool IsActive);
 public record UserRolesRequest(List<int> RoleIds);
+public record UserPermissionsRequest(List<int> PermissionIds);
 public record UserDto(int UserId, int EmployeeId, string EmployeeName, string EmployeeEmail, string EmployeeNik, bool IsActive,
     string? ProfilePhotoUrl, DateTime CreatedAt, DateTime? UpdatedAt, IReadOnlyList<string> Roles);
 public record RoleDto(int RoleId, string RoleName, string GuardName, IReadOnlyList<string> Permissions);
 public record PermissionDto(int PermissionId, string PermissionName, string GuardName);
+public record UserPermissionDto(int PermissionId, string PermissionName, string GuardName, bool IsAllowed, bool IsDirectlyAssigned);
+public record UserPermissionsDto(int UserId, IReadOnlyList<UserPermissionDto> Permissions);
 public class UserQuery : PageQuery { public bool? IsActive { get; set; } }
 
 // ---------- Master data ----------
@@ -44,11 +47,19 @@ public record ConditionDto(int ConditionId, string ConditionCode, string Conditi
 // ---------- Assets ----------
 public record AssetRequest(int CatId, int GroupId, int TypeId, int BrandId, string AssetName, AssetType AssetType, int StatusId, string AssetPrefix,
     int? Quantity, string? UnitOfMeasure, string? SerialNumber, string? AssetTag, string? PurchaseOrderNumber, string? SapMaterialNumber,
-    decimal? AssetValue, string? Description, int? BusUnitId, int? ConditionId, string? BusinessUnit, string? RowVersion);
+    decimal? AssetValue, string? Description, int? BusUnitId, int? ConditionId, string? BusinessUnit, string? RowVersion,
+    int? LocationId = null, int? ModelId = null, string? AssetCode = null);
 public record AssetDto(int AssetId, int CatId, string CatName, int GroupId, string GroupName, int TypeId, string TypeName, int BrandId, string BrandName,
     string AssetName, AssetType AssetType, int StatusId, string AssetStatus, string AssetPrefix, DateTime CreatedDt, int Quantity, string? UnitOfMeasure,
     string? SerialNumber, string? AssetTag, string? PurchaseOrderNumber, string? SapMaterialNumber, decimal? AssetValue, string? Description,
-    int? BusUnitId, int? ConditionId, string? ConditionName, string? BusinessUnit, DateTime? UpdatedDt, string RowVersion);
+    int? BusUnitId, int? ConditionId, string? ConditionName, string? BusinessUnit, DateTime? UpdatedDt, string RowVersion)
+{
+    public string AssetCode { get; init; } = AssetPrefix;
+    public int? LocationId { get; init; }
+    public string? LocationName { get; init; }
+    public int? ModelId { get; init; }
+    public string? ModelName { get; init; }
+}
 public class AssetQuery : PageQuery
 {
     public int? CatId { get; set; }
@@ -58,13 +69,18 @@ public class AssetQuery : PageQuery
     public int? BusUnitId { get; set; }
     public string? BusinessUnit { get; set; }
     public int? ConditionId { get; set; }
+    public int? LocationId { get; set; }
     public AssetType? AssetType { get; set; }
     public int? StatusId { get; set; }
 }
 public record BulkBusinessUnitRequest(List<int> AssetIds, int BusUnitId, string? BusinessUnit);
 public record BulkBusinessUnitResult(int UpdatedCount);
+public record BulkAssetTransferRequest(List<int> AssetIds, int BusUnitId, int LocationId, string? Reason);
+public record BulkAssetTransferFailure(int AssetId, string Reason);
+public record BulkAssetTransferResult(int RequestedCount, int SuccessCount, int FailedCount, IReadOnlyList<BulkAssetTransferFailure> Failures);
 public record ImportError(int RowNumber, List<string> Messages);
-public record ImportResult(int TotalRows, int SuccessCount, int FailedCount, List<ImportError> Errors);
+public record ImportRowResult(int RowNumber, string Status, IReadOnlyList<string> Messages);
+public record ImportResult(int TotalRows, int SuccessCount, int FailedCount, List<ImportError> Errors, IReadOnlyList<ImportRowResult>? Rows = null);
 
 // ---------- Goods ----------
 public record GoodItemRequest(int AssetId, int Quantity, string? SerialNumber, string? ReferenceNumber, string? AssetInformation, string? Condition,

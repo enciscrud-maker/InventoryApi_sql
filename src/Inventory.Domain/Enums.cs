@@ -51,6 +51,7 @@ public static class Permissions
     public const string AuditRead = "audit.read";
     public const string AuditCreate = "audit.create";
     public const string AuditUpdate = "audit.update";
+    public const string AuditApprove = "audit.approve";
     public const string DashboardRead = "dashboard.read";
     public const string ReportRead = "report.read";
     public const string UserManage = "user.manage";
@@ -58,9 +59,9 @@ public static class Permissions
     public static readonly string[] All =
     {
         MasterRead, MasterCreate, MasterUpdate, MasterDelete, AssetRead, AssetCreate, AssetUpdate, AssetImport, AssetExport,
-        GoodRead, GoodCreate, GoodStatus, AuditRead, AuditCreate, AuditUpdate, DashboardRead, ReportRead, UserManage
+        GoodRead, GoodCreate, GoodStatus, AuditRead, AuditCreate, AuditUpdate, AuditApprove, DashboardRead, ReportRead, UserManage
     };
 
-    /// <summary>Member = everything except delete and user/role management.</summary>
-    public static readonly string[] MemberDefaults = All.Where(p => p != MasterDelete && p != UserManage).ToArray();
+    /// <summary>Member = everything except delete, approval and user/role management.</summary>
+    public static readonly string[] MemberDefaults = All.Where(p => p != MasterDelete && p != AuditApprove && p != UserManage).ToArray();
 }

@@ -32,6 +32,8 @@ public class MdAssetConfiguration : IEntityTypeConfiguration<MdAsset>
         b.Property(x => x.AssetValue).HasColumnName("AssetValue").HasPrecision(18, 2);
         b.Property(x => x.Description).HasColumnName("Description").HasMaxLength(1000);
         b.Property(x => x.BusUnitId).HasColumnName("BusUnitId");
+        b.Property(x => x.LocationId).HasColumnName("LocationId");
+        b.Property(x => x.ModelId).HasColumnName("ModelId");
         b.Property(x => x.ConditionId).HasColumnName("ConditionId");
         b.Property(x => x.BusinessUnit).HasColumnName("BusinessUnit").HasMaxLength(100);
         b.Property(x => x.UpdatedDt).HasColumnName("UpdatedDt");
@@ -41,10 +43,15 @@ public class MdAssetConfiguration : IEntityTypeConfiguration<MdAsset>
         b.Fk(x => x.Group, x => x.GroupId);
         b.Fk(x => x.Type, x => x.TypeId);
         b.Fk(x => x.BusUnit, x => x.BusUnitId, false);
+        b.Fk(x => x.Location, x => x.LocationId, false);
+        b.Fk(x => x.Model, x => x.ModelId, false);
         b.Fk(x => x.Condition, x => x.ConditionId, false);
         b.Fk(x => x.Status, x => x.StatusId);
         b.HasIndex(x => x.AssetPrefix).IsUnique();
         b.HasIndex(x => x.SerialNumber).IsUnique().HasFilter("[SerialNumber] IS NOT NULL");
+        b.HasIndex(x => x.AssetTag).IsUnique().HasFilter("[AssetTag] IS NOT NULL AND [AssetTag] <> N''");
+        b.HasIndex(x => x.SapMaterialNumber).IsUnique().HasFilter("[SapMaterialNumber] IS NOT NULL AND [SapMaterialNumber] <> N''");
+        b.ToTable(t => t.HasCheckConstraint("CK_MD_Asset_LocationRequiresBusinessUnit", "[LocationId] IS NULL OR [BusUnitId] IS NOT NULL"));
         b.ToTable(t => t.HasCheckConstraint("CK_MD_Asset_Quantity", "[Quantity] >= 0"));
     }
 }

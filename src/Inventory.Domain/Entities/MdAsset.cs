@@ -21,6 +21,8 @@ public class MdAsset
     public decimal? AssetValue { get; set; }
     public string? Description { get; set; }
     public int? BusUnitId { get; set; }
+    public int? LocationId { get; set; }
+    public int? ModelId { get; set; }
     public int? ConditionId { get; set; }
     public string? BusinessUnit { get; set; }
     public DateTime? UpdatedDt { get; set; }
@@ -30,6 +32,8 @@ public class MdAsset
     public MdGroup Group { get; set; } = null!;
     public MdType Type { get; set; } = null!;
     public MdBusinessUnit? BusUnit { get; set; }
+    public MdLocation? Location { get; set; }
+    public MdModel? Model { get; set; }
     public MdAssetCondition? Condition { get; set; }
     public MdAssetStatus Status { get; set; } = null!;
 }

@@ -40,6 +40,15 @@ public class UsersController(UserService svc) : ControllerBase
     [HttpPut("api/users/{id:int}/roles")]
     public async Task<ActionResult<UserDto>> SetRoles(int id, UserRolesRequest r, CancellationToken ct) => Ok(await svc.SetRolesAsync(id, r.RoleIds, ct));
 
+    /// <summary>Returns the permission catalog with the user's effective and directly assigned permissions.</summary>
+    [HttpGet("api/users/{id:int}/permissions")]
+    public async Task<ActionResult<UserPermissionsDto>> GetPermissions(int id, CancellationToken ct) => Ok(await svc.GetPermissionsAsync(id, ct));
+
+    /// <summary>Replaces the user's access with exactly the supplied permissions, removing role assignments.</summary>
+    [HttpPost("api/users/{id:int}/permissions")]
+    public async Task<ActionResult<UserPermissionsDto>> SetPermissions(int id, UserPermissionsRequest r, CancellationToken ct) =>
+        Ok(await svc.SetPermissionsAsync(id, r.PermissionIds, ct));
+
     [HttpGet("api/roles")]
     public async Task<ActionResult<List<RoleDto>>> ListRoles(CancellationToken ct) => Ok(await svc.ListRolesAsync(ct));
 

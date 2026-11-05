@@ -14,6 +14,7 @@ namespace Inventory.Api.Infrastructure;
 public class CurrentUser(IHttpContextAccessor accessor) : ICurrentUser
 {
     public int? UserId => int.TryParse(accessor.HttpContext?.User.FindFirst("sub")?.Value, out var id) ? id : null;
+    public bool HasPermission(string permission) => accessor.HttpContext?.User.HasClaim("permission", permission) == true;
 }
 
 /// <summary>Runs every registered FluentValidation validator for body arguments and returns RFC 7807 problem details.</summary>

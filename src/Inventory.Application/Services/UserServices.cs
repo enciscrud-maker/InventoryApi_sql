@@ -142,10 +142,52 @@ public class UserService(IAppDbContext db, IPasswordHasher hasher, ICurrentUser 
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         var existing = await db.ModelRoles.Where(m => m.ModelId == id).ToListAsync(ct);
         db.ModelRoles.RemoveRange(existing);
+        var existingPermissions = await db.ModelPermissions.Where(m => m.ModelId == id).ToListAsync(ct);
+        db.ModelPermissions.RemoveRange(existingPermissions);
         db.ModelRoles.AddRange(roleIds.Select(rid => new CfgModelRole { RoleId = rid, ModelId = id }));
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
         return await GetAsync(id, ct);
+    }
+
+    public async Task<UserPermissionsDto> GetPermissionsAsync(int id, CancellationToken ct)
+    {
+        if (!await db.Users.AnyAsync(x => x.UserId == id, ct)) throw new NotFoundException($"User {id}");
+
+        var roleIds = await db.ModelRoles.Where(m => m.ModelId == id).Select(m => m.RoleId).ToListAsync(ct);
+        var rolePermissionIds = await db.RolePermissions.Where(rp => roleIds.Contains(rp.RoleId))
+            .Select(rp => rp.PermissionId).Distinct().ToListAsync(ct);
+        var directPermissionIds = await db.ModelPermissions.Where(mp => mp.ModelId == id)
+            .Select(mp => mp.PermissionId).ToListAsync(ct);
+        var allowedIds = rolePermissionIds.Concat(directPermissionIds).ToHashSet();
+        var directIds = directPermissionIds.ToHashSet();
+        var permissions = await db.Permissions.AsNoTracking().OrderBy(p => p.PermissionName)
+            .Select(p => new PermissionDto(p.PermissionId, p.PermissionName, p.GuardName)).ToListAsync(ct);
+
+        return new UserPermissionsDto(id, permissions.Select(p => new UserPermissionDto(
+            p.PermissionId, p.PermissionName, p.GuardName, allowedIds.Contains(p.PermissionId), directIds.Contains(p.PermissionId))).ToList());
+    }
+
+    public async Task<UserPermissionsDto> SetPermissionsAsync(int id, List<int> permissionIds, CancellationToken ct)
+    {
+        if (!await db.Users.AnyAsync(x => x.UserId == id, ct)) throw new NotFoundException($"User {id}");
+
+        var ids = permissionIds.Distinct().ToList();
+        var names = await db.Permissions.Where(p => ids.Contains(p.PermissionId)).Select(p => p.PermissionName).ToListAsync(ct);
+        if (names.Count != ids.Count) throw new ValidationFailedException("permissionIds", "One or more permissions do not exist.");
+        if (current.UserId == id && !names.Contains(Permissions.UserManage))
+            throw new BadRequestException("You cannot remove your own user management permission.");
+
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        var existingRoles = await db.ModelRoles.Where(m => m.ModelId == id).ToListAsync(ct);
+        db.ModelRoles.RemoveRange(existingRoles);
+        var existingPermissions = await db.ModelPermissions.Where(m => m.ModelId == id).ToListAsync(ct);
+        db.ModelPermissions.RemoveRange(existingPermissions);
+        db.ModelPermissions.AddRange(ids.Select(permissionId => new CfgModelPermission { ModelId = id, PermissionId = permissionId }));
+        await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+
+        return await GetPermissionsAsync(id, ct);
     }
 
     public async Task<List<RoleDto>> ListRolesAsync(CancellationToken ct)
