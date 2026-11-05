@@ -29,4 +29,24 @@ public class AuditsController(AuditService svc) : ControllerBase
         await using var stream = file.OpenReadStream();
         return Ok(await svc.AddEvidenceAsync(id, itemId, file.FileName, file.Length, stream, ct));
     }
+
+    [HttpGet("{id:int}/items/{itemId:int}/evidence/{evidenceId:int}"), Authorize(Policy = Permissions.AuditRead)]
+    public async Task<IActionResult> GetEvidence(int id, int itemId, int evidenceId, CancellationToken ct)
+    {
+        if (evidenceId != 1) throw new NotFoundException($"Evidence {evidenceId}");
+        var evidence = await svc.OpenEvidenceAsync(id, itemId, ct);
+        return File(evidence.Content, evidence.ContentType);
+    }
+
+    [HttpDelete("{id:int}/items/{itemId:int}/evidence/{evidenceId:int}"), Authorize(Policy = Permissions.AuditUpdate)]
+    public async Task<IActionResult> DeleteEvidence(int id, int itemId, int evidenceId, CancellationToken ct)
+    {
+        if (evidenceId != 1) throw new NotFoundException($"Evidence {evidenceId}");
+        await svc.DeleteEvidenceAsync(id, itemId, ct);
+        return NoContent();
+    }
+
+    [HttpPost("{id:int}/complete"), Authorize(Policy = Permissions.AuditApprove)]
+    public async Task<ActionResult<AuditDetailDto>> Complete(int id, AuditCompleteRequest request, CancellationToken ct) =>
+        Ok(await svc.CompleteAsync(id, request.UpdateLocation, ct));
 }

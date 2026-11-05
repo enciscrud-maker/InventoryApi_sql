@@ -8,6 +8,7 @@ public class TrStockOpnameDetail
     public int SystemQuantity { get; set; }
     public int PhysicalQuantity { get; set; }
     public int? ActualBusUnitId { get; set; }
+    public int? ActualLocationId { get; set; }
     public string? Finding { get; set; }
     public bool IsConfirmed { get; set; }
     public string? Notes { get; set; }
@@ -15,4 +16,5 @@ public class TrStockOpnameDetail
     public TrStockOpname StockOpname { get; set; } = null!;
     public MdAsset Asset { get; set; } = null!;
     public MdBusinessUnit? ActualBusUnit { get; set; }
+    public MdLocation? ActualLocation { get; set; }
 }

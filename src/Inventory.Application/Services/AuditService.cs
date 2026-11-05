@@ -1,5 +1,7 @@
 namespace Inventory.Application.Services;
 
+public sealed record AuditEvidenceFile(Stream Content, string ContentType);
+
 public class AuditService(IAppDbContext db, ICurrentUser current, IFileStorage storage)
 {
     private static readonly string[] EvidenceExtensions = { ".png", ".jpg", ".jpeg", ".pdf" };
@@ -86,9 +88,9 @@ public class AuditService(IAppDbContext db, ICurrentUser current, IFileStorage s
         var assets = await db.Assets.AsNoTracking().Where(a => assetIds.Contains(a.AssetId)).ToDictionaryAsync(a => a.AssetId, ct);
         var missing = assetIds.Except(assets.Keys).ToList();
         if (missing.Count > 0) throw new ValidationFailedException("items", $"Assets not found: {string.Join(", ", missing)}.");
-        var busUnitIds = r.Items.Where(i => i.ActualBusUnitId.HasValue).Select(i => i.ActualBusUnitId!.Value).Distinct().ToList();
-        if (busUnitIds.Count > 0 && await db.BusinessUnits.CountAsync(b => busUnitIds.Contains(b.BusUnitId), ct) != busUnitIds.Count)
-            throw new ValidationFailedException("items", "One or more actual business units do not exist.");
+        var locationIds = r.Items.Where(i => i.ActualLocationId.HasValue).Select(i => i.ActualLocationId!.Value).Distinct().ToList();
+        if (locationIds.Count > 0 && await db.Locations.CountAsync(l => locationIds.Contains(l.LocationId), ct) != locationIds.Count)
+            throw new ValidationFailedException("items", "One or more actual locations do not exist.");
 
         var keepIds = r.Items.Where(i => i.StockOpnameDetailId.HasValue).Select(i => i.StockOpnameDetailId!.Value).ToHashSet();
         var unknown = keepIds.Except(audit.Details.Select(d => d.StockOpnameDetailId)).ToList();
@@ -109,7 +111,7 @@ public class AuditService(IAppDbContext db, ICurrentUser current, IFileStorage s
                 d = new TrStockOpnameDetail { StockOpnameId = id, AssetId = i.AssetId, SystemQuantity = assets[i.AssetId].Quantity };
                 db.StockOpnameDetails.Add(d);
             }
-            d.PhysicalQuantity = i.PhysicalQuantity; d.ActualBusUnitId = i.ActualBusUnitId; d.IsConfirmed = i.IsConfirmed; d.Notes = i.Notes;
+            d.PhysicalQuantity = i.PhysicalQuantity; d.ActualLocationId = i.ActualLocationId; d.IsConfirmed = i.IsConfirmed; d.Notes = i.Notes;
             var variance = d.PhysicalQuantity - d.SystemQuantity;
             d.Finding = string.IsNullOrWhiteSpace(i.Finding) ? (variance == 0 ? "Match" : variance < 0 ? "Shortage" : "Overage") : i.Finding.Trim();
         }
@@ -134,6 +136,84 @@ public class AuditService(IAppDbContext db, ICurrentUser current, IFileStorage s
         return ToItem(item);
     }
 
+    public async Task<AuditDetailDto> CompleteAsync(int id, bool updateLocation, CancellationToken ct)
+    {
+        var audit = await db.StockOpnames
+            .Include(x => x.Details)
+            .ThenInclude(x => x.Asset)
+            .FirstOrDefaultAsync(x => x.StockOpnameId == id, ct)
+            ?? throw new NotFoundException($"Stock audit {id}");
+        if (audit.StockOpnameStatus == StockOpnameStatuses.Completed)
+            throw new ConflictException("This stock audit is already completed.");
+
+        var confirmedItems = audit.Details.Where(x => x.IsConfirmed).ToList();
+        var locationIds = updateLocation
+            ? confirmedItems.Where(x => x.ActualLocationId.HasValue).Select(x => x.ActualLocationId!.Value).Distinct().ToList()
+            : new List<int>();
+        var locations = locationIds.Count == 0
+            ? new Dictionary<int, MdLocation>()
+            : await db.Locations.Where(x => locationIds.Contains(x.LocationId)).ToDictionaryAsync(x => x.LocationId, ct);
+        if (locations.Count != locationIds.Count)
+            throw new ValidationFailedException("items", "One or more actual locations do not exist.");
+
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        var now = DateTime.UtcNow;
+        foreach (var item in confirmedItems)
+        {
+            item.Asset.Quantity = item.PhysicalQuantity;
+            item.Asset.UpdatedDt = now;
+            if (updateLocation && item.ActualLocationId is int locationId)
+            {
+                var location = locations[locationId];
+                item.Asset.LocationId = location.LocationId;
+                item.Asset.BusUnitId = location.BusUnitId;
+            }
+        }
+        audit.StockOpnameStatus = StockOpnameStatuses.Completed;
+        audit.UpdatedDt = now;
+        await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+        return await GetAsync(id, ct);
+    }
+
+    public async Task<AuditEvidenceFile> OpenEvidenceAsync(int id, int itemId, CancellationToken ct)
+    {
+        var item = await db.StockOpnameDetails.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.StockOpnameId == id && x.StockOpnameDetailId == itemId, ct)
+            ?? throw new NotFoundException($"Audit item {itemId}");
+        if (string.IsNullOrWhiteSpace(item.EvidencePath))
+            throw new NotFoundException($"Evidence for audit item {itemId}");
+        var stream = await storage.OpenReadAsync(item.EvidencePath, ct)
+            ?? throw new NotFoundException($"Evidence for audit item {itemId}");
+        var contentType = Path.GetExtension(item.EvidencePath).ToLowerInvariant() switch
+        {
+            ".png" => "image/png",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".pdf" => "application/pdf",
+            _ => "application/octet-stream",
+        };
+        return new AuditEvidenceFile(stream, contentType);
+    }
+
+    public async Task DeleteEvidenceAsync(int id, int itemId, CancellationToken ct)
+    {
+        var audit = await db.StockOpnames.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.StockOpnameId == id, ct)
+            ?? throw new NotFoundException($"Stock audit {id}");
+        if (audit.StockOpnameStatus == StockOpnameStatuses.Completed)
+            throw new ConflictException("A completed audit is read-only.");
+        var item = await db.StockOpnameDetails
+            .FirstOrDefaultAsync(x => x.StockOpnameId == id && x.StockOpnameDetailId == itemId, ct)
+            ?? throw new NotFoundException($"Audit item {itemId}");
+        if (string.IsNullOrWhiteSpace(item.EvidencePath))
+            throw new NotFoundException($"Evidence for audit item {itemId}");
+
+        var evidencePath = item.EvidencePath;
+        item.EvidencePath = null;
+        await db.SaveChangesAsync(ct);
+        await storage.DeleteAsync(evidencePath, ct);
+    }
+
     private async Task EnsureBusinessUnitAsync(int? busUnitId, CancellationToken ct)
     {
         if (busUnitId.HasValue && !await db.BusinessUnits.AnyAsync(b => b.BusUnitId == busUnitId.Value, ct))
@@ -143,7 +223,8 @@ public class AuditService(IAppDbContext db, ICurrentUser current, IFileStorage s
     private static string? NormalizeStatus(string? s) => string.IsNullOrWhiteSpace(s) ? null : StockOpnameStatuses.All.FirstOrDefault(x => string.Equals(x, s.Trim(), StringComparison.OrdinalIgnoreCase));
 
     private static AuditItemDto ToItem(TrStockOpnameDetail d) => new(d.StockOpnameDetailId, d.AssetId, d.Asset.AssetName, d.Asset.AssetPrefix, d.SystemQuantity, d.PhysicalQuantity,
-        d.PhysicalQuantity - d.SystemQuantity, d.ActualBusUnitId, d.Finding, d.IsConfirmed, d.Notes, d.EvidencePath);
+        d.PhysicalQuantity - d.SystemQuantity, d.ActualLocationId, d.Finding, d.IsConfirmed, d.Notes,
+        string.IsNullOrWhiteSpace(d.EvidencePath) ? null : $"/api/stock-audits/{d.StockOpnameId}/items/{d.StockOpnameDetailId}/evidence/1");
 
     private static AuditDetailDto ToDto(TrStockOpname a) => new(a.StockOpnameId, a.StockOpnameNumber, a.StockOpnameName, a.AuditDate, a.StockOpnameType, a.StockOpnameStatus,
         a.StockOpnamePrefix, a.AssetId, a.UserId, a.BusinessUnit, a.BusUnitId, a.CreatedDt, a.UpdatedDt, a.Details.OrderBy(d => d.StockOpnameDetailId).Select(ToItem).ToList());

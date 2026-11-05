@@ -30,6 +30,8 @@ dotnet ef database update -p src/Inventory.Infrastructure -s src/Inventory.Api
 Setelah ada migration, startup otomatis memanggil `Migrate()`.
 Perubahan skema tidak diterapkan ke database lama oleh `EnsureCreated`; buat dan jalankan migration sebelum memakai database yang sudah ada.
 
+Untuk database legacy sebelum pemisahan master business unit/status aset, hentikan API, buat dan verifikasi backup database, lalu jalankan `src/Inventory.Infrastructure/Persistence/UpgradeLegacySchema.sql` terhadap database API. Script ini bersifat transaksional dan akan berhenti tanpa perubahan jika tabel aset, lokasi, goods, atau stock opname sudah berisi data legacy yang perlu dipetakan manual. Kolom/tabel lama yang tidak lagi dipakai tetap dipertahankan. Script ini juga menambahkan `ActualLocationId` untuk lokasi aktual tiap item stock opname.
+
 ### Konfigurasi produksi
 - `Jwt__Key` (>= 32 karakter, WAJIB diganti), `ConnectionStrings__DefaultConnection`.
 - Docker Compose memakai database `InventoryApiDocker` secara default (`DATABASE_NAME` untuk mengubahnya), agar tidak memakai database lama dengan skema yang tidak cocok.

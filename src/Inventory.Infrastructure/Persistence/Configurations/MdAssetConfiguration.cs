@@ -46,7 +46,11 @@ public class MdAssetConfiguration : IEntityTypeConfiguration<MdAsset>
         b.Fk(x => x.Location, x => x.LocationId, false);
         b.Fk(x => x.Model, x => x.ModelId, false);
         b.Fk(x => x.Condition, x => x.ConditionId, false);
-        b.Fk(x => x.Status, x => x.StatusId);
+        b.HasOne(x => x.Status)
+            .WithMany(x => x.Assets)
+            .HasForeignKey(x => x.StatusId)
+            .IsRequired()
+            .OnDelete(DeleteBehavior.Restrict);
         b.HasIndex(x => x.AssetPrefix).IsUnique();
         b.HasIndex(x => x.SerialNumber).IsUnique().HasFilter("[SerialNumber] IS NOT NULL");
         b.HasIndex(x => x.AssetTag).IsUnique().HasFilter("[AssetTag] IS NOT NULL AND [AssetTag] <> N''");

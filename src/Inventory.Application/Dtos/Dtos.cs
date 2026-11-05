@@ -110,10 +110,11 @@ public class GoodQuery : PageQuery
 // ---------- Stock audit ----------
 public record AuditCreateRequest(string StockOpnameName, StockOpnameType StockOpnameType, int AssetId, DateTime AuditDate, string? BusinessUnit, int? BusUnitId, string? StockOpnameStatus);
 public record AuditUpdateRequest(string StockOpnameName, DateTime AuditDate, string? BusinessUnit, int? BusUnitId, string StockOpnameStatus);
-public record AuditItemRequest(int? StockOpnameDetailId, int AssetId, int PhysicalQuantity, int? ActualBusUnitId, string? Finding, bool IsConfirmed, string? Notes);
+public record AuditItemRequest(int? StockOpnameDetailId, int AssetId, int PhysicalQuantity, int? ActualLocationId, string? Finding, bool IsConfirmed, string? Notes);
 public record AuditItemsRequest(List<AuditItemRequest> Items);
+public record AuditCompleteRequest(bool UpdateLocation);
 public record AuditItemDto(int StockOpnameDetailId, int AssetId, string AssetName, string AssetPrefix, int SystemQuantity, int PhysicalQuantity, int Variance,
-    int? ActualBusUnitId, string? Finding, bool IsConfirmed, string? Notes, string? EvidencePath);
+    int? ActualLocationId, string? Finding, bool IsConfirmed, string? Notes, string? EvidencePath);
 public record AuditListItemDto(int StockOpnameId, string StockOpnameNumber, string StockOpnameName, DateTime AuditDate, StockOpnameType StockOpnameType, string StockOpnameStatus,
     string? BusinessUnit, int? BusUnitId, int ItemCount, int DiscrepancyCount);
 public record AuditDetailDto(int StockOpnameId, string StockOpnameNumber, string StockOpnameName, DateTime AuditDate, StockOpnameType StockOpnameType, string StockOpnameStatus,

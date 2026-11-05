@@ -67,4 +67,6 @@ public interface IFileStorage
 {
     /// <summary>Saves a file and returns the relative storage path.</summary>
     Task<string> SaveAsync(string folder, string storedFileName, Stream content, CancellationToken ct);
+    Task<Stream?> OpenReadAsync(string path, CancellationToken ct);
+    Task DeleteAsync(string path, CancellationToken ct);
 }
