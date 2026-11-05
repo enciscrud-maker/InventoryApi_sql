@@ -50,9 +50,9 @@ public class AssetService(IAppDbContext db, IHierarchyValidator hierarchy)
 
     public async Task<AssetDto> CreateAsync(AssetRequest r, CancellationToken ct)
     {
-        await ValidateAsync(r, null, ct);
+        var status = await ValidateAsync(r, null, ct);
         var a = new MdAsset { CreatedDt = DateTime.UtcNow, Quantity = r.Quantity ?? 0 };
-        Apply(a, r);
+        Apply(a, r, status);
         db.Assets.Add(a);
         await db.SaveChangesAsync(ct);
         return await GetAsync(a.AssetId, ct);
@@ -62,13 +62,13 @@ public class AssetService(IAppDbContext db, IHierarchyValidator hierarchy)
     public async Task<AssetDto> UpdateAsync(int id, AssetRequest r, CancellationToken ct)
     {
         var a = await db.Assets.FirstOrDefaultAsync(x => x.AssetId == id, ct) ?? throw new NotFoundException($"Asset {id}");
-        await ValidateAsync(r, id, ct);
+        var status = await ValidateAsync(r, id, ct);
         if (!string.IsNullOrWhiteSpace(r.RowVersion))
         {
             try { db.Entry(a).Property(x => x.RowVersion).OriginalValue = Convert.FromBase64String(r.RowVersion); }
             catch (FormatException) { throw new ValidationFailedException("rowVersion", "RowVersion is not valid base64."); }
         }
-        Apply(a, r);
+        Apply(a, r, status);
         a.UpdatedDt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct); // DbUpdateConcurrencyException -> 409 via middleware
         return await GetAsync(id, ct);
@@ -111,7 +111,7 @@ public class AssetService(IAppDbContext db, IHierarchyValidator hierarchy)
         }));
     }
 
-    private async Task ValidateAsync(AssetRequest r, int? id, CancellationToken ct)
+    private async Task<MdAssetStatus> ValidateAsync(AssetRequest r, int? id, CancellationToken ct)
     {
         var self = id ?? 0;
         await hierarchy.ValidateAsync(r.CatId, r.GroupId, r.TypeId, r.BrandId, ct);
@@ -121,16 +121,19 @@ public class AssetService(IAppDbContext db, IHierarchyValidator hierarchy)
             throw new ConflictException($"SerialNumber '{r.SerialNumber}' already exists.");
         if (r.BusUnitId.HasValue && !await db.BusinessUnits.AnyAsync(b => b.BusUnitId == r.BusUnitId.Value, ct))
             throw new ValidationFailedException("busUnitId", "Business unit does not exist.");
-        if (!await db.AssetStatuses.AnyAsync(s => s.StatusId == r.StatusId, ct))
+        var status = await db.AssetStatuses.FirstOrDefaultAsync(s => s.StatusId == r.StatusId, ct);
+        if (status is null)
             throw new ValidationFailedException("statusId", "Asset status does not exist.");
         if (r.ConditionId.HasValue && !await db.Conditions.AnyAsync(c => c.ConditionId == r.ConditionId.Value, ct))
             throw new ValidationFailedException("conditionId", "Condition does not exist.");
+        return status;
     }
 
-    private static void Apply(MdAsset a, AssetRequest r)
+    private static void Apply(MdAsset a, AssetRequest r, MdAssetStatus status)
     {
         a.CatId = r.CatId; a.GroupId = r.GroupId; a.TypeId = r.TypeId; a.BrandId = r.BrandId;
-        a.AssetName = r.AssetName.Trim(); a.AssetType = r.AssetType; a.StatusId = r.StatusId; a.AssetPrefix = r.AssetPrefix.Trim();
+        a.AssetName = r.AssetName.Trim(); a.AssetType = r.AssetType; a.StatusId = status.StatusId;
+        a.AssetStatus = status.StatusName; a.AssetPrefix = r.AssetPrefix.Trim();
         a.UnitOfMeasure = r.UnitOfMeasure?.Trim();
         a.SerialNumber = string.IsNullOrWhiteSpace(r.SerialNumber) ? null : r.SerialNumber.Trim();
         a.AssetTag = r.AssetTag?.Trim(); a.PurchaseOrderNumber = r.PurchaseOrderNumber?.Trim(); a.SapMaterialNumber = r.SapMaterialNumber?.Trim();

@@ -4,6 +4,13 @@ namespace Inventory.Application.Dtos;
 public record LoginRequest(string Identifier, string Password);
 public record RefreshRequest(string RefreshToken);
 public record LogoutRequest(string? RefreshToken);
+public record PasswordResetSubmissionRequest(string Name, string Nik, string Email, string Phone);
+public record PasswordResetSubmissionDto(string Message);
+public record PasswordResetProcessRequest(string Action, string? NewPassword, string? RejectionReason);
+public record PasswordResetRequestDto(int Id, string RequestId, int AccountId, string MemberName, string Nik,
+    string Email, string Phone, DateTime RequestDate, string Status, string? ProcessedBy,
+    DateTime? ProcessedAt, string? RejectionReason);
+public record PasswordResetRequestsDto(IReadOnlyList<PasswordResetRequestDto> Requests);
 public record UserProfileDto(int UserId, int EmployeeId, string EmployeeName, string EmployeeEmail, string EmployeeNik,
     string? ProfilePhotoUrl, IReadOnlyList<string> Roles, IReadOnlyList<string> Permissions,
     IReadOnlyList<string> PagePermissions, bool IsMainAdmin);
@@ -44,7 +51,7 @@ public record ModelDto(int ModelId, int? AssetId, int CatId, int BrandId, int Gr
 public record BusinessUnitRequest(string BusUnitCode, string BusUnitPrefix, bool IsActive = true);
 public record BusinessUnitDto(int BusUnitId, string BusUnitCode, string BusUnitPrefix, bool IsActive);
 public record LocationRequest(int BusUnitId, string LocationName);
-public record LocationDto(int LocationId, int BusUnitId, string LocationName);
+public record LocationDto(int LocationId, string LocationCode, int BusUnitId, string LocationName, bool IsActive);
 public record AssetStatusRequest(string StatusCode, string StatusName, bool IsActive = true);
 public record AssetStatusDto(int StatusId, string StatusCode, string StatusName, bool IsActive);
 public record ConditionRequest(string ConditionCode, string ConditionName, bool IsActive = true);

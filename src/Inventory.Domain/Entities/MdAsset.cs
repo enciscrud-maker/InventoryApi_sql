@@ -10,6 +10,7 @@ public class MdAsset
     public string AssetName { get; set; } = string.Empty;
     public AssetType AssetType { get; set; }
     public int StatusId { get; set; }
+    public string AssetStatus { get; set; } = string.Empty;
     public string AssetPrefix { get; set; } = string.Empty;
     public DateTime CreatedDt { get; set; }
     public int Quantity { get; set; }

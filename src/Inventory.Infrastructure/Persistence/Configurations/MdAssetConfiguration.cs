@@ -21,6 +21,7 @@ public class MdAssetConfiguration : IEntityTypeConfiguration<MdAsset>
         b.Property(x => x.AssetName).HasColumnName("AssetName").HasMaxLength(200).IsRequired();
         b.Property(x => x.AssetType).HasColumnName("AssetType").HasConversion<string>().HasMaxLength(30);
         b.Property(x => x.StatusId).HasColumnName("StatusId");
+        b.Property(x => x.AssetStatus).HasColumnName("AssetStatus").HasMaxLength(50).IsRequired();
         b.Property(x => x.AssetPrefix).HasColumnName("AssetPrefix").HasMaxLength(50).IsRequired();
         b.Property(x => x.CreatedDt).HasColumnName("CreatedDt");
         b.Property(x => x.Quantity).HasColumnName("Quantity");

@@ -32,6 +32,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<TrGoodStatusHistory> GoodStatusHistories => Set<TrGoodStatusHistory>();
     public DbSet<TrStockOpname> StockOpnames => Set<TrStockOpname>();
     public DbSet<TrStockOpnameDetail> StockOpnameDetails => Set<TrStockOpnameDetail>();
+    public DbSet<TrPasswordResetRequest> PasswordResetRequests => Set<TrPasswordResetRequest>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

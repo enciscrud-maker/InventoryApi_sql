@@ -28,6 +28,7 @@ public interface IAppDbContext
     DbSet<TrGoodStatusHistory> GoodStatusHistories { get; }
     DbSet<TrStockOpname> StockOpnames { get; }
     DbSet<TrStockOpnameDetail> StockOpnameDetails { get; }
+    DbSet<TrPasswordResetRequest> PasswordResetRequests { get; }
 
     DatabaseFacade Database { get; }
     EntityEntry<TEntity> Entry<TEntity>(TEntity entity) where TEntity : class;

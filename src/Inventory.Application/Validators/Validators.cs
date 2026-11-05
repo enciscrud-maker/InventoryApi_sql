@@ -10,6 +10,26 @@ public class RefreshRequestValidator : AbstractValidator<RefreshRequest>
 {
     public RefreshRequestValidator() { RuleFor(x => x.RefreshToken).NotEmpty(); }
 }
+public class PasswordResetSubmissionRequestValidator : AbstractValidator<PasswordResetSubmissionRequest>
+{
+    public PasswordResetSubmissionRequestValidator()
+    {
+        RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.Nik).NotEmpty().MaximumLength(50);
+        RuleFor(x => x.Email).NotEmpty().EmailAddress().MaximumLength(200);
+        RuleFor(x => x.Phone).NotEmpty().MaximumLength(30);
+    }
+}
+public class PasswordResetProcessRequestValidator : AbstractValidator<PasswordResetProcessRequest>
+{
+    public PasswordResetProcessRequestValidator()
+    {
+        RuleFor(x => x.Action).Must(x => x is "process" or "reject");
+        RuleFor(x => x.NewPassword).NotEmpty().MinimumLength(8).MaximumLength(100)
+            .When(x => x.Action == "process");
+        RuleFor(x => x.RejectionReason).MaximumLength(500);
+    }
+}
 
 public class EmployeeRequestValidator : AbstractValidator<EmployeeRequest>
 {

@@ -212,8 +212,12 @@ public class LocationService(IAppDbContext db, IHierarchyValidator h) : MasterSe
     protected override IQueryable<MdLocation> ApplySearch(IQueryable<MdLocation> q, string s) => q.Where(x => x.LocationName.Contains(s));
     protected override IQueryable<MdLocation> ApplySort(IQueryable<MdLocation> q, string? s, bool d) => s switch
     { "name" => q.OrderByDir(x => x.LocationName, d), "businessunit" => q.OrderByDir(x => x.BusUnitId, d), _ => q.OrderByDir(x => x.LocationId, d) };
-    protected override LocationDto ToDto(MdLocation e) => new(e.LocationId, e.BusUnitId, e.LocationName);
-    protected override MdLocation Create() => new();
+    protected override LocationDto ToDto(MdLocation e) => new(e.LocationId, e.LocationCode, e.BusUnitId, e.LocationName, e.IsActive);
+    protected override MdLocation Create() => new()
+    {
+        LocationCode = "LOC-" + Guid.NewGuid().ToString("N")[..26],
+        IsActive = true
+    };
     protected override async Task ApplyAsync(MdLocation e, LocationRequest r, int? id, CancellationToken ct)
     {
         if (!await Db.BusinessUnits.AnyAsync(x => x.BusUnitId == r.BusUnitId, ct))

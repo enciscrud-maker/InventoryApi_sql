@@ -188,6 +188,9 @@ public class AuthAndRbacTests(ApiFixture fx)
     public async Task Business_unit_has_multiple_locations_and_asset_status_cannot_be_deleted()
     {
         var admin = await fx.AdminAsync();
+        var invalidLocation = await admin.PostAsJsonAsync("/api/locations", new { busUnitId = 0, locationName = "string" });
+        invalidLocation.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
         var code = "BU" + Guid.NewGuid().ToString("N")[..8];
         var businessUnit = await J(await admin.PostAsJsonAsync("/api/business-units", new { busUnitCode = code, busUnitPrefix = "BU" }));
         var busUnitId = businessUnit["busUnitId"]!.GetValue<int>();
@@ -195,12 +198,20 @@ public class AuthAndRbacTests(ApiFixture fx)
         var secondLocation = await admin.PostAsJsonAsync("/api/locations", new { busUnitId, locationName = "Location B" });
         firstLocation.StatusCode.Should().Be(HttpStatusCode.Created);
         secondLocation.StatusCode.Should().Be(HttpStatusCode.Created);
-        (await J(firstLocation))["busUnitId"]!.GetValue<int>().Should().Be(busUnitId);
-        (await J(secondLocation))["busUnitId"]!.GetValue<int>().Should().Be(busUnitId);
+        var firstLocationDto = await J(firstLocation);
+        var secondLocationDto = await J(secondLocation);
+        firstLocationDto["busUnitId"]!.GetValue<int>().Should().Be(busUnitId);
+        secondLocationDto["busUnitId"]!.GetValue<int>().Should().Be(busUnitId);
+        firstLocationDto["locationCode"]!.GetValue<string>().Should().StartWith("LOC-");
+        secondLocationDto["locationCode"]!.GetValue<string>().Should().StartWith("LOC-")
+            .And.NotBe(firstLocationDto["locationCode"]!.GetValue<string>());
+        firstLocationDto["isActive"]!.GetValue<bool>().Should().BeTrue();
 
         var statuses = await J(await admin.GetAsync("/api/asset-statuses?search=Active"));
         var statusId = statuses["items"]![0]!["statusId"]!.GetValue<int>();
-        await fx.CreateAssetAsync(admin, 1);
+        var assetId = await fx.CreateAssetAsync(admin, 1);
+        var asset = await J(await admin.GetAsync($"/api/assets/{assetId}"));
+        asset["assetStatus"]!.GetValue<string>().Should().Be(statuses["items"]![0]!["statusName"]!.GetValue<string>());
         (await admin.DeleteAsync($"/api/asset-statuses/{statusId}")).StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
 

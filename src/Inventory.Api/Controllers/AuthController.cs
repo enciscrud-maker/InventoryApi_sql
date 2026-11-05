@@ -1,11 +1,19 @@
 namespace Inventory.Api.Controllers;
 
 [ApiController, Route("api/auth"), Produces("application/json")]
-public class AuthController(AuthService auth, Inventory.Application.Abstractions.ICurrentUser current) : ControllerBase
+public class AuthController(
+    AuthService auth,
+    PasswordResetService passwordResets,
+    Inventory.Application.Abstractions.ICurrentUser current) : ControllerBase
 {
     /// <summary>Login with EmployeeEmail or EmployeeNik (field <c>identifier</c>) and password.</summary>
     [HttpPost("login"), AllowAnonymous]
     public async Task<ActionResult<AuthResponse>> Login(LoginRequest request, CancellationToken ct) => Ok(await auth.LoginAsync(request, ct));
+
+    [HttpPost("password-reset"), AllowAnonymous]
+    public async Task<ActionResult<PasswordResetSubmissionDto>> RequestPasswordReset(
+        PasswordResetSubmissionRequest request,
+        CancellationToken ct) => Accepted(await passwordResets.SubmitAsync(request, ct));
 
     /// <summary>Exchanges a valid refresh token for a new access/refresh token pair (refresh tokens are single use).</summary>
     [HttpPost("refresh"), AllowAnonymous]

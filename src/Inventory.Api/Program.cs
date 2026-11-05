@@ -47,6 +47,7 @@ builder.Services.AddScoped<IMasterService<LocationRequest, LocationDto>, Locatio
 builder.Services.AddScoped<IMasterService<AssetStatusRequest, AssetStatusDto>, AssetStatusService>();
 builder.Services.AddScoped<IMasterService<ConditionRequest, ConditionDto>, ConditionService>();
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<PasswordResetService>();
 builder.Services.AddScoped<EmployeeService>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<AssetService>();

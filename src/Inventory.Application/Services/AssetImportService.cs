@@ -88,7 +88,7 @@ public class AssetImportService(IAppDbContext db)
             valid.Add(new MdAsset
             {
                 CatId = cat!.CatId, GroupId = grp!.GroupId, TypeId = typ!.TypeId, BrandId = brd!.BrandId,
-                AssetName = name, AssetType = type, StatusId = status!.StatusId, AssetPrefix = prefix,
+                AssetName = name, AssetType = type, StatusId = status!.StatusId, AssetStatus = status.StatusName, AssetPrefix = prefix,
                 Quantity = 0, CreatedDt = now // never trust quantity / audit fields from the file
             });
         }

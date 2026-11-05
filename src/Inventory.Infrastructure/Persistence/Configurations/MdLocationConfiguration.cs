@@ -11,8 +11,11 @@ public class MdLocationConfiguration : IEntityTypeConfiguration<MdLocation>
         b.ToTable("MD_Location");
         b.HasKey(x => x.LocationId);
         b.Property(x => x.LocationId).HasColumnName("LocationId").ValueGeneratedOnAdd();
+        b.Property(x => x.LocationCode).HasColumnName("LocationCode").HasMaxLength(30).IsRequired();
         b.Property(x => x.BusUnitId).HasColumnName("BusUnitId");
         b.Property(x => x.LocationName).HasColumnName("LocationName").HasMaxLength(150).IsRequired();
+        b.Property(x => x.IsActive).HasColumnName("IsActive");
+        b.HasIndex(x => x.LocationCode).IsUnique();
         b.HasOne(x => x.BusinessUnit).WithMany(x => x.Locations).HasForeignKey(x => x.BusUnitId).OnDelete(DeleteBehavior.Restrict);
     }
 }

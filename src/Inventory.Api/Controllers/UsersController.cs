@@ -18,7 +18,7 @@ public class EmployeesController(EmployeeService svc) : ControllerBase
 }
 
 [ApiController, Authorize(Policy = Permissions.UserManage), Produces("application/json")]
-public class UsersController(UserService svc) : ControllerBase
+public class UsersController(UserService svc, PasswordResetService passwordResets) : ControllerBase
 {
     [HttpPost("api/accounts")]
     public async Task<ActionResult<UserDto>> CreateManaged(ManagedAccountRequest r, CancellationToken ct) =>
@@ -51,6 +51,16 @@ public class UsersController(UserService svc) : ControllerBase
     /// <summary>Returns the permission catalog with the user's effective and directly assigned permissions.</summary>
     [HttpGet("api/users/{id:int}/permissions")]
     public async Task<ActionResult<UserPermissionsDto>> GetPermissions(int id, CancellationToken ct) => Ok(await svc.GetPermissionsAsync(id, ct));
+
+    [HttpGet("api/password-reset-requests")]
+    public async Task<ActionResult<PasswordResetRequestsDto>> ListPasswordResetRequests(CancellationToken ct) =>
+        Ok(await passwordResets.ListAsync(ct));
+
+    [HttpPatch("api/password-reset-requests/{id:int}")]
+    public async Task<ActionResult<PasswordResetRequestDto>> ProcessPasswordResetRequest(
+        int id,
+        PasswordResetProcessRequest request,
+        CancellationToken ct) => Ok(await passwordResets.ProcessAsync(id, request, ct));
 
     /// <summary>Replaces direct permission assignments while retaining the user's role and baseline read access.</summary>
     [HttpPost("api/users/{id:int}/permissions")]
