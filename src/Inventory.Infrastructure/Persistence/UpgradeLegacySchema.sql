@@ -32,6 +32,20 @@ IF @needsUpgrade = 1
 
 BEGIN TRANSACTION;
 
+IF COL_LENGTH(N'dbo.MD_User', N'IsMainAdmin') IS NULL
+    ALTER TABLE dbo.MD_User
+        ADD IsMainAdmin bit NOT NULL
+            CONSTRAINT DF_MD_User_IsMainAdmin DEFAULT (0);
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE object_id = OBJECT_ID(N'dbo.MD_User')
+      AND name = N'UX_MD_User_IsMainAdmin'
+)
+    CREATE UNIQUE INDEX UX_MD_User_IsMainAdmin
+        ON dbo.MD_User(IsMainAdmin)
+        WHERE IsMainAdmin = 1;
+
 IF OBJECT_ID(N'dbo.MD_BusinessUnit', N'U') IS NULL
 BEGIN
     CREATE TABLE dbo.MD_BusinessUnit

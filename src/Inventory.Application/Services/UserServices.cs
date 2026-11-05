@@ -76,13 +76,24 @@ public class UserService(IAppDbContext db, IPasswordHasher hasher, ICurrentUser 
         var ids = users.Select(u => u.UserId).ToList();
         var roleRows = await (from mr in db.ModelRoles join r in db.Roles on mr.RoleId equals r.RoleId where ids.Contains(mr.ModelId) select new { mr.ModelId, r.RoleName }).ToListAsync(ct);
         var map = roleRows.GroupBy(x => x.ModelId).ToDictionary(g => g.Key, g => (IReadOnlyList<string>)g.Select(x => x.RoleName).ToList());
-        return new PagedResult<UserDto>(users.Select(u => ToDto(u, map.GetValueOrDefault(u.UserId) ?? Array.Empty<string>())).ToList(), p.SafePage, p.SafeSize, total);
+        var result = new List<UserDto>(users.Count);
+        foreach (var user in users)
+        {
+            var roles = map.GetValueOrDefault(user.UserId) ?? Array.Empty<string>();
+            result.Add(ToDto(
+                user,
+                roles,
+                await EffectivePermissionNamesAsync(user, roles, ct),
+                await PagePermissionNamesAsync(user, ct)));
+        }
+        return new PagedResult<UserDto>(result, p.SafePage, p.SafeSize, total);
     }
 
     public async Task<UserDto> GetAsync(int id, CancellationToken ct)
     {
         var u = await db.Users.AsNoTracking().Include(x => x.Employee).FirstOrDefaultAsync(x => x.UserId == id, ct) ?? throw new NotFoundException($"User {id}");
-        return ToDto(u, await RoleNamesAsync(id, ct));
+        var roles = await RoleNamesAsync(id, ct);
+        return ToDto(u, roles, await EffectivePermissionNamesAsync(u, roles, ct), await PagePermissionNamesAsync(u, ct));
     }
 
     public async Task<UserDto> CreateAsync(UserCreateRequest r, CancellationToken ct)
@@ -120,10 +131,95 @@ public class UserService(IAppDbContext db, IPasswordHasher hasher, ICurrentUser 
         return await GetAsync(id, ct);
     }
 
+    public async Task<UserDto> CreateManagedAccountAsync(ManagedAccountRequest r, CancellationToken ct)
+    {
+        ValidateManagedAccount(r, creating: true);
+        var roleId = await RoleIdAsync(r.Role, ct);
+        var permissionIds = await PermissionIdsForPagesAsync(r.Role, r.PagePermissions, ct);
+        if (await db.Employees.AnyAsync(e => e.EmployeeNik == r.EmployeeNik.Trim(), ct))
+            throw new ConflictException($"EmployeeNik '{r.EmployeeNik}' already exists.");
+        if (await db.Users.AnyAsync(u => u.EmployeeEmail == r.EmployeeEmail.Trim(), ct))
+            throw new ConflictException($"EmployeeEmail '{r.EmployeeEmail}' already exists.");
+
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        var employee = new MdEmployee
+        {
+            EmployeeName = r.EmployeeName.Trim(),
+            EmployeeNik = r.EmployeeNik.Trim(),
+            EmployeePhone = r.EmployeePhone?.Trim(),
+            Position = r.Position?.Trim(),
+            Department = r.Department?.Trim(),
+            BusinessUnit = r.BusinessUnit?.Trim(),
+        };
+        db.Employees.Add(employee);
+        await db.SaveChangesAsync(ct);
+        var user = new MdUser
+        {
+            EmployeeId = employee.EmployeeId,
+            EmployeeName = employee.EmployeeName,
+            EmployeeEmail = r.EmployeeEmail.Trim(),
+            EmployeePassword = hasher.Hash(r.Password!),
+            CreatedAt = DateTime.UtcNow,
+            IsActive = r.IsActive,
+        };
+        db.Users.Add(user);
+        await db.SaveChangesAsync(ct);
+        db.ModelRoles.Add(new CfgModelRole { RoleId = roleId, ModelId = user.UserId });
+        db.ModelPermissions.AddRange(permissionIds.Select(permissionId =>
+            new CfgModelPermission { ModelId = user.UserId, PermissionId = permissionId }));
+        await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+        return await GetAsync(user.UserId, ct);
+    }
+
+    public async Task<UserDto> UpdateManagedAccountAsync(int id, ManagedAccountRequest r, CancellationToken ct)
+    {
+        ValidateManagedAccount(r, creating: false);
+        var user = await db.Users.Include(u => u.Employee).FirstOrDefaultAsync(u => u.UserId == id, ct)
+            ?? throw new NotFoundException($"User {id}");
+        if (await IsMainAdminAsync(user, ct))
+            throw new BadRequestException("The Main Admin identity and access cannot be changed here.");
+        var roleId = await RoleIdAsync(r.Role, ct);
+        var permissionIds = await PermissionIdsForPagesAsync(r.Role, r.PagePermissions, ct);
+        if (await db.Employees.AnyAsync(e => e.EmployeeNik == r.EmployeeNik.Trim() && e.EmployeeId != user.EmployeeId, ct))
+            throw new ConflictException($"EmployeeNik '{r.EmployeeNik}' already exists.");
+        if (await db.Users.AnyAsync(u => u.EmployeeEmail == r.EmployeeEmail.Trim() && u.UserId != id, ct))
+            throw new ConflictException($"EmployeeEmail '{r.EmployeeEmail}' already exists.");
+        if (!r.IsActive && current.UserId == id)
+            throw new BadRequestException("You cannot deactivate your own account.");
+
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        var employee = user.Employee;
+        employee.EmployeeName = r.EmployeeName.Trim();
+        employee.EmployeeNik = r.EmployeeNik.Trim();
+        employee.EmployeePhone = r.EmployeePhone?.Trim();
+        employee.Position = r.Position?.Trim();
+        employee.Department = r.Department?.Trim();
+        employee.BusinessUnit = r.BusinessUnit?.Trim();
+        user.EmployeeName = employee.EmployeeName;
+        user.EmployeeEmail = r.EmployeeEmail.Trim();
+        user.IsActive = r.IsActive;
+        user.UpdatedAt = DateTime.UtcNow;
+        if (!string.IsNullOrWhiteSpace(r.Password))
+            user.EmployeePassword = hasher.Hash(r.Password);
+
+        var existingRoles = await db.ModelRoles.Where(m => m.ModelId == id).ToListAsync(ct);
+        db.ModelRoles.RemoveRange(existingRoles);
+        db.ModelRoles.Add(new CfgModelRole { RoleId = roleId, ModelId = id });
+        var existingPermissions = await db.ModelPermissions.Where(m => m.ModelId == id).ToListAsync(ct);
+        db.ModelPermissions.RemoveRange(existingPermissions);
+        db.ModelPermissions.AddRange(permissionIds.Select(permissionId =>
+            new CfgModelPermission { ModelId = id, PermissionId = permissionId }));
+        await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+        return await GetAsync(id, ct);
+    }
+
     public async Task<UserDto> SetStatusAsync(int id, bool isActive, CancellationToken ct)
     {
         if (!isActive && current.UserId == id) throw new BadRequestException("You cannot deactivate your own account.");
         var u = await db.Users.FirstOrDefaultAsync(x => x.UserId == id, ct) ?? throw new NotFoundException($"User {id}");
+        if (await IsMainAdminAsync(u, ct) && !isActive) throw new BadRequestException("The Main Admin account cannot be deactivated.");
         u.IsActive = isActive; u.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
         return await GetAsync(id, ct);
@@ -131,7 +227,9 @@ public class UserService(IAppDbContext db, IPasswordHasher hasher, ICurrentUser 
 
     public async Task<UserDto> SetRolesAsync(int id, List<int> roleIds, CancellationToken ct)
     {
-        if (!await db.Users.AnyAsync(x => x.UserId == id, ct)) throw new NotFoundException($"User {id}");
+        var target = await db.Users.FirstOrDefaultAsync(x => x.UserId == id, ct)
+            ?? throw new NotFoundException($"User {id}");
+        if (await IsMainAdminAsync(target, ct)) throw new BadRequestException("The Main Admin role cannot be changed.");
         roleIds = roleIds.Distinct().ToList();
         await EnsureRolesExistAsync(roleIds, ct);
         if (current.UserId == id)
@@ -155,32 +253,34 @@ public class UserService(IAppDbContext db, IPasswordHasher hasher, ICurrentUser 
         if (!await db.Users.AnyAsync(x => x.UserId == id, ct)) throw new NotFoundException($"User {id}");
 
         var roleIds = await db.ModelRoles.Where(m => m.ModelId == id).Select(m => m.RoleId).ToListAsync(ct);
-        var rolePermissionIds = await db.RolePermissions.Where(rp => roleIds.Contains(rp.RoleId))
-            .Select(rp => rp.PermissionId).Distinct().ToListAsync(ct);
+        var target = await db.Users.AsNoTracking().FirstOrDefaultAsync(x => x.UserId == id, ct)
+            ?? throw new NotFoundException($"User {id}");
+        var roleNames = await db.Roles.Where(r => roleIds.Contains(r.RoleId)).Select(r => r.RoleName).ToListAsync(ct);
         var directPermissionIds = await db.ModelPermissions.Where(mp => mp.ModelId == id)
             .Select(mp => mp.PermissionId).ToListAsync(ct);
-        var allowedIds = rolePermissionIds.Concat(directPermissionIds).ToHashSet();
+        var effectiveNames = await EffectivePermissionNamesAsync(target, roleNames, ct);
+        var allowedNames = effectiveNames.ToHashSet(StringComparer.Ordinal);
         var directIds = directPermissionIds.ToHashSet();
         var permissions = await db.Permissions.AsNoTracking().OrderBy(p => p.PermissionName)
             .Select(p => new PermissionDto(p.PermissionId, p.PermissionName, p.GuardName)).ToListAsync(ct);
 
         return new UserPermissionsDto(id, permissions.Select(p => new UserPermissionDto(
-            p.PermissionId, p.PermissionName, p.GuardName, allowedIds.Contains(p.PermissionId), directIds.Contains(p.PermissionId))).ToList());
+            p.PermissionId, p.PermissionName, p.GuardName, allowedNames.Contains(p.PermissionName), directIds.Contains(p.PermissionId))).ToList());
     }
 
     public async Task<UserPermissionsDto> SetPermissionsAsync(int id, List<int> permissionIds, CancellationToken ct)
     {
-        if (!await db.Users.AnyAsync(x => x.UserId == id, ct)) throw new NotFoundException($"User {id}");
+        var target = await db.Users.FirstOrDefaultAsync(x => x.UserId == id, ct)
+            ?? throw new NotFoundException($"User {id}");
+        if (await IsMainAdminAsync(target, ct)) throw new BadRequestException("The Main Admin permissions cannot be changed.");
 
         var ids = permissionIds.Distinct().ToList();
         var names = await db.Permissions.Where(p => ids.Contains(p.PermissionId)).Select(p => p.PermissionName).ToListAsync(ct);
         if (names.Count != ids.Count) throw new ValidationFailedException("permissionIds", "One or more permissions do not exist.");
-        if (current.UserId == id && !names.Contains(Permissions.UserManage))
-            throw new BadRequestException("You cannot remove your own user management permission.");
+        if (names.Contains(Permissions.UserManage, StringComparer.Ordinal))
+            throw new BadRequestException("User-management permission is reserved for the Main Admin.");
 
         await using var tx = await db.Database.BeginTransactionAsync(ct);
-        var existingRoles = await db.ModelRoles.Where(m => m.ModelId == id).ToListAsync(ct);
-        db.ModelRoles.RemoveRange(existingRoles);
         var existingPermissions = await db.ModelPermissions.Where(m => m.ModelId == id).ToListAsync(ct);
         db.ModelPermissions.RemoveRange(existingPermissions);
         db.ModelPermissions.AddRange(ids.Select(permissionId => new CfgModelPermission { ModelId = id, PermissionId = permissionId }));
@@ -210,7 +310,103 @@ public class UserService(IAppDbContext db, IPasswordHasher hasher, ICurrentUser 
     private async Task<IReadOnlyList<string>> RoleNamesAsync(int userId, CancellationToken ct) =>
         await (from mr in db.ModelRoles join r in db.Roles on mr.RoleId equals r.RoleId where mr.ModelId == userId select r.RoleName).ToListAsync(ct);
 
+    private async Task<IReadOnlyList<string>> EffectivePermissionNamesAsync(MdUser user, IReadOnlyList<string> roles, CancellationToken ct)
+    {
+        if (await IsMainAdminAsync(user, ct)) return Permissions.All;
+        var roleIds = db.ModelRoles.Where(m => m.ModelId == user.UserId).Select(m => m.RoleId);
+        var rolePermissionIds = db.RolePermissions
+            .Where(rp => roleIds.Contains(rp.RoleId))
+            .Join(db.Roles, rp => rp.RoleId, r => r.RoleId, (rp, r) => new { rp.PermissionId, r.RoleName })
+            .Where(x => x.RoleName != RoleNames.Admin)
+            .Select(x => x.PermissionId);
+        var directPermissionIds = db.ModelPermissions.Where(mp => mp.ModelId == user.UserId).Select(mp => mp.PermissionId);
+        var names = await db.Permissions
+            .Where(p => rolePermissionIds.Contains(p.PermissionId) || directPermissionIds.Contains(p.PermissionId))
+            .Select(p => p.PermissionName)
+            .Distinct()
+            .ToListAsync(ct);
+        names = names.Where(Permissions.All.Contains).ToList();
+        if (roles.Contains(RoleNames.Member))
+            names = Permissions.MemberDefaults
+                .Concat(names.Where(p => Permissions.MemberCreatable.Contains(p, StringComparer.Ordinal)))
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+        names.Remove(Permissions.UserManage);
+        return names;
+    }
+
+    private async Task<IReadOnlyList<string>> PagePermissionNamesAsync(MdUser user, CancellationToken ct)
+    {
+        if (await IsMainAdminAsync(user, ct)) return Permissions.PagePermissions.Keys.ToList();
+        var markers = await db.ModelPermissions
+            .Where(mp => mp.ModelId == user.UserId)
+            .Join(db.Permissions, mp => mp.PermissionId, p => p.PermissionId, (_, p) => p.PermissionName)
+            .ToListAsync(ct);
+        return Permissions.PageMarkers
+            .Where(marker => markers.Contains(marker.Value, StringComparer.Ordinal))
+            .Select(marker => marker.Key)
+            .ToList();
+    }
+
+    private async Task<int> RoleIdAsync(string role, CancellationToken ct)
+    {
+        if (role is not (RoleNames.Admin or RoleNames.Member))
+            throw new ValidationFailedException("role", "Role must be Admin or Member.");
+        var roleId = await db.Roles.Where(r => r.RoleName == role).Select(r => r.RoleId).FirstOrDefaultAsync(ct);
+        return roleId > 0
+            ? roleId
+            : throw new InvalidOperationException($"Role '{role}' has not been seeded.");
+    }
+
+    private async Task<List<int>> PermissionIdsForPagesAsync(string role, IReadOnlyCollection<string>? pagePermissions, CancellationToken ct)
+    {
+        var pages = pagePermissions ?? Array.Empty<string>();
+        var unknown = pages.Where(page => !Permissions.PagePermissions.ContainsKey(page)).Distinct(StringComparer.Ordinal).ToList();
+        if (unknown.Count > 0)
+            throw new ValidationFailedException("pagePermissions", $"Unknown page permission(s): {string.Join(", ", unknown)}.");
+        var selectedPages = pages.Distinct(StringComparer.Ordinal).ToList();
+        var names = selectedPages
+            .SelectMany(page => Permissions.PagePermissions[page]);
+        if (role == RoleNames.Member) names = names.Where(Permissions.MemberCreatable.Contains);
+        var permissionNames = names.Concat(selectedPages.Select(page => Permissions.PageMarkers[page]))
+            .Distinct(StringComparer.Ordinal).ToList();
+        return await db.Permissions.Where(p => permissionNames.Contains(p.PermissionName))
+            .Select(p => p.PermissionId).ToListAsync(ct);
+    }
+
+    private async Task<bool> IsMainAdminAsync(MdUser user, CancellationToken ct)
+    {
+        if (user.IsMainAdmin) return true;
+        if (user.Employee is not null)
+            return user.Employee.EmployeeNik == RoleNames.MainAdminNik;
+        return await db.Employees.AnyAsync(
+            e => e.EmployeeId == user.EmployeeId && e.EmployeeNik == RoleNames.MainAdminNik, ct);
+    }
+
+    private static void ValidateManagedAccount(ManagedAccountRequest r, bool creating)
+    {
+        if (string.IsNullOrWhiteSpace(r.EmployeeName) || string.IsNullOrWhiteSpace(r.EmployeeNik) ||
+            string.IsNullOrWhiteSpace(r.EmployeeEmail))
+            throw new ValidationFailedException("account", "Name, NIK and email are required.");
+        if (creating && (string.IsNullOrWhiteSpace(r.Password) || r.Password.Length < 8))
+            throw new ValidationFailedException("password", "A password of at least 8 characters is required.");
+        if (!string.IsNullOrWhiteSpace(r.Password) && r.Password.Length < 8)
+            throw new ValidationFailedException("password", "A password of at least 8 characters is required.");
+        if (r.EmployeeName.Length > 200 || r.EmployeeNik.Length > 50 || r.EmployeeEmail.Length > 200 ||
+            (r.EmployeePhone?.Length ?? 0) > 30 || (r.Position?.Length ?? 0) > 100 ||
+            (r.Department?.Length ?? 0) > 100 || (r.BusinessUnit?.Length ?? 0) > 100)
+            throw new ValidationFailedException("account", "One or more account fields exceed the maximum length.");
+        if (!System.Net.Mail.MailAddress.TryCreate(r.EmployeeEmail.Trim(), out _))
+            throw new ValidationFailedException("employeeEmail", "A valid email address is required.");
+        if (r.PagePermissions is null)
+            throw new ValidationFailedException("pagePermissions", "Page permissions are required.");
+    }
+
     // EmployeePassword is intentionally never part of any DTO.
-    private static UserDto ToDto(MdUser u, IReadOnlyList<string> roles) =>
-        new(u.UserId, u.EmployeeId, u.EmployeeName, u.EmployeeEmail, u.Employee.EmployeeNik, u.IsActive, u.ProfilePhotoUrl, u.CreatedAt, u.UpdatedAt, roles);
+    private static UserDto ToDto(MdUser u, IReadOnlyList<string> roles, IReadOnlyList<string> permissions,
+        IReadOnlyList<string> pagePermissions) =>
+        new(u.UserId, u.EmployeeId, u.EmployeeName, u.EmployeeEmail, u.Employee.EmployeeNik, u.IsActive,
+            u.ProfilePhotoUrl, u.CreatedAt, u.UpdatedAt, roles, u.Employee.EmployeePhone, u.Employee.Position,
+            u.Employee.Department, u.Employee.BusinessUnit,
+            u.IsMainAdmin || u.Employee.EmployeeNik == RoleNames.MainAdminNik, permissions, pagePermissions);
 }

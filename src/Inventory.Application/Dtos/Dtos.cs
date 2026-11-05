@@ -5,7 +5,8 @@ public record LoginRequest(string Identifier, string Password);
 public record RefreshRequest(string RefreshToken);
 public record LogoutRequest(string? RefreshToken);
 public record UserProfileDto(int UserId, int EmployeeId, string EmployeeName, string EmployeeEmail, string EmployeeNik,
-    string? ProfilePhotoUrl, IReadOnlyList<string> Roles, IReadOnlyList<string> Permissions);
+    string? ProfilePhotoUrl, IReadOnlyList<string> Roles, IReadOnlyList<string> Permissions,
+    IReadOnlyList<string> PagePermissions, bool IsMainAdmin);
 public record AuthResponse(string AccessToken, string RefreshToken, DateTime ExpiresAt, UserProfileDto User);
 
 // ---------- Employees / Users / Roles ----------
@@ -17,7 +18,12 @@ public record UserStatusRequest(bool IsActive);
 public record UserRolesRequest(List<int> RoleIds);
 public record UserPermissionsRequest(List<int> PermissionIds);
 public record UserDto(int UserId, int EmployeeId, string EmployeeName, string EmployeeEmail, string EmployeeNik, bool IsActive,
-    string? ProfilePhotoUrl, DateTime CreatedAt, DateTime? UpdatedAt, IReadOnlyList<string> Roles);
+    string? ProfilePhotoUrl, DateTime CreatedAt, DateTime? UpdatedAt, IReadOnlyList<string> Roles,
+    string? EmployeePhone, string? Position, string? Department, string? BusinessUnit, bool IsMainAdmin,
+    IReadOnlyList<string> Permissions, IReadOnlyList<string> PagePermissions);
+public record ManagedAccountRequest(string EmployeeName, string EmployeeNik, string? EmployeePhone, string? Position,
+    string? Department, string? BusinessUnit, string EmployeeEmail, string? Password, string Role,
+    List<string> PagePermissions, bool IsActive = true);
 public record RoleDto(int RoleId, string RoleName, string GuardName, IReadOnlyList<string> Permissions);
 public record PermissionDto(int PermissionId, string PermissionName, string GuardName);
 public record UserPermissionDto(int PermissionId, string PermissionName, string GuardName, bool IsAllowed, bool IsDirectlyAssigned);

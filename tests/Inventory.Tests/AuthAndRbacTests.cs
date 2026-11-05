@@ -32,7 +32,7 @@ public class AuthAndRbacTests(ApiFixture fx)
     [Fact]
     public async Task Member_cannot_delete_or_manage_users_but_can_create()
     {
-        var member = await fx.MemberAsync();
+        var member = await fx.MemberAsync("master-data");
         var code = "C" + Guid.NewGuid().ToString("N")[..8];
         var create = await member.PostAsJsonAsync("/api/categories", new { catName = "Tmp", catCode = code, catPrefix = "TM" });
         create.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -45,9 +45,101 @@ public class AuthAndRbacTests(ApiFixture fx)
     }
 
     [Fact]
+    public async Task Main_admin_is_distinguished_and_only_it_can_manage_accounts()
+    {
+        var mainAdmin = await fx.AdminAsync();
+        var profile = await J(await mainAdmin.GetAsync("/api/auth/me"));
+        profile["isMainAdmin"]!.GetValue<bool>().Should().BeTrue();
+        profile["employeeNik"]!.GetValue<string>().Should().Be("0000000001");
+        profile["pagePermissions"]!.AsArray().Select(x => x!.GetValue<string>())
+            .Should().Contain(new[] { "dashboard", "asset-inventory", "goods-in", "goods-out", "stock-opname", "master-data", "reports", "settings" });
+        (await mainAdmin.GetAsync("/api/goods-in")).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await mainAdmin.GetAsync("/api/goods-out")).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await mainAdmin.GetAsync("/api/users")).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var created = await J(await mainAdmin.PostAsJsonAsync("/api/accounts", new
+        {
+            employeeName = "Scoped Admin " + suffix,
+            employeeNik = "ANIK" + suffix,
+            employeeEmail = $"a{suffix}@test.local",
+            position = "Analyst",
+            department = "IT",
+            businessUnit = "HQ",
+            password = "Scoped#12345",
+            role = "Admin",
+            pagePermissions = new[] { "asset-inventory" },
+            isActive = true
+        }));
+        created["pagePermissions"]!.AsArray().Select(x => x!.GetValue<string>())
+            .Should().Equal("asset-inventory");
+
+        var scopedAdmin = await fx.LoginAsync($"a{suffix}@test.local", "Scoped#12345");
+        var scopedProfile = await J(await scopedAdmin.GetAsync("/api/auth/me"));
+        scopedProfile["isMainAdmin"]!.GetValue<bool>().Should().BeFalse();
+        (await scopedAdmin.GetAsync("/api/assets")).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await scopedAdmin.GetAsync("/api/goods-in")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await scopedAdmin.GetAsync("/api/users")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await scopedAdmin.PostAsJsonAsync("/api/categories", new
+        {
+            catName = "Denied",
+            catCode = "D" + suffix,
+            catPrefix = "DN"
+        })).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Designated_nik_keeps_main_admin_access_if_database_flag_is_not_set()
+    {
+        await fx.SetDesignatedMainAdminFlagAsync(false);
+        try
+        {
+            var admin = await fx.LoginAsync("0000000001", AdminPassword);
+            var profile = await J(await admin.GetAsync("/api/auth/me"));
+            profile["isMainAdmin"]!.GetValue<bool>().Should().BeTrue();
+            (await admin.GetAsync("/api/users")).StatusCode.Should().Be(HttpStatusCode.OK);
+            (await admin.GetAsync("/api/goods-in")).StatusCode.Should().Be(HttpStatusCode.OK);
+            (await admin.GetAsync("/api/goods-out")).StatusCode.Should().Be(HttpStatusCode.OK);
+        }
+        finally
+        {
+            await fx.SetDesignatedMainAdminFlagAsync(true);
+        }
+    }
+
+    [Fact]
+    public async Task Existing_access_token_without_main_admin_claim_receives_database_admin_authorization()
+    {
+        var admin = await fx.LoginWithoutMainAdminClaimAsync("0000000001");
+        var profile = await J(await admin.GetAsync("/api/auth/me"));
+        profile["isMainAdmin"]!.GetValue<bool>().Should().BeTrue();
+        (await admin.GetAsync("/api/assets")).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await admin.GetAsync("/api/goods-in")).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await admin.GetAsync("/api/goods-out")).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await admin.GetAsync("/api/users")).StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task Member_reads_all_pages_but_can_create_only_on_assigned_pages()
+    {
+        var member = await fx.MemberAsync("asset-inventory");
+        (await member.GetAsync("/api/categories")).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await member.PostAsJsonAsync("/api/categories", new
+        {
+            catName = "Denied",
+            catCode = "D" + Guid.NewGuid().ToString("N")[..8],
+            catPrefix = "DN"
+        })).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        var assetId = await fx.CreateAssetAsync(member, 2);
+        (await member.PostAsJsonAsync("/api/goods-in", ApiFixture.GoodBody(TransactionType.Return, assetId, 1)))
+            .StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
     public async Task User_permissions_can_be_read_and_replaced_as_an_exact_allowlist()
     {
-        var member = await fx.MemberAsync();
+        var member = await fx.MemberAsync("master-data");
         var profile = await J(await member.GetAsync("/api/auth/me"));
         var userId = profile["userId"]!.GetValue<int>();
         var admin = await fx.AdminAsync();
@@ -55,23 +147,24 @@ public class AuthAndRbacTests(ApiFixture fx)
         (await member.GetAsync($"/api/users/{userId}/permissions")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
 
         var catalog = await J(await admin.GetAsync("/api/permissions"));
-        var assetReadId = catalog.AsArray().Single(p => p!["permissionName"]!.GetValue<string>() == Permissions.AssetRead)!["permissionId"]!.GetValue<int>();
-        var update = await admin.PostAsJsonAsync($"/api/users/{userId}/permissions", new { permissionIds = new[] { assetReadId } });
+        var assetCreateId = catalog.AsArray().Single(p => p!["permissionName"]!.GetValue<string>() == Permissions.AssetCreate)!["permissionId"]!.GetValue<int>();
+        var update = await admin.PostAsJsonAsync($"/api/users/{userId}/permissions", new { permissionIds = new[] { assetCreateId } });
         update.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var saved = await J(update);
         var allowed = saved["permissions"]!.AsArray()
             .Where(p => p!["isAllowed"]!.GetValue<bool>())
             .Select(p => p!["permissionName"]!.GetValue<string>());
-        allowed.Should().BeEquivalentTo(new[] { Permissions.AssetRead });
-        saved["permissions"]!.AsArray().Single(p => p!["permissionId"]!.GetValue<int>() == assetReadId)!["isDirectlyAssigned"]!.GetValue<bool>().Should().BeTrue();
+        allowed.Should().BeEquivalentTo(Permissions.MemberDefaults.Append(Permissions.AssetCreate));
+        saved["permissions"]!.AsArray().Single(p => p!["permissionId"]!.GetValue<int>() == assetCreateId)!["isDirectlyAssigned"]!.GetValue<bool>().Should().BeTrue();
 
         var user = await J(await admin.GetAsync($"/api/users/{userId}"));
-        user["roles"]!.AsArray().Should().BeEmpty();
+        user["roles"]!.AsArray().Select(role => role!.GetValue<string>()).Should().Contain(RoleNames.Member);
 
         var freshMember = await fx.LoginAsync(profile["employeeEmail"]!.GetValue<string>(), "Member#12345");
         (await freshMember.GetAsync("/api/assets")).StatusCode.Should().Be(HttpStatusCode.OK);
-        (await freshMember.GetAsync("/api/categories")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await freshMember.GetAsync("/api/categories")).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await freshMember.PostAsJsonAsync("/api/categories", new { catName = "Denied", catCode = "D" + Guid.NewGuid().ToString("N")[..8], catPrefix = "DN" })).StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
     [Fact]

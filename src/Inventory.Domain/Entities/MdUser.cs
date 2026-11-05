@@ -9,6 +9,7 @@ public class MdUser
     public string EmployeePassword { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
     public bool IsActive { get; set; } = true;
+    public bool IsMainAdmin { get; set; }
     public string? ProfilePhotoUrl { get; set; }
     public DateTime? UpdatedAt { get; set; }
     public MdEmployee Employee { get; set; } = null!;

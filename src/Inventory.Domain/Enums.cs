@@ -19,6 +19,7 @@ public static class RoleNames
     public const string Admin = "Admin";
     public const string Member = "Member";
     public const string Guard = "api";
+    public const string MainAdminNik = "0000000001";
 }
 
 public static class ConditionCodes
@@ -37,6 +38,7 @@ public static class StockOpnameStatuses
 public static class Permissions
 {
     public const string MasterRead = "master.read";
+    public const string MasterLookupRead = "master.lookup.read";
     public const string MasterCreate = "master.create";
     public const string MasterUpdate = "master.update";
     public const string MasterDelete = "master.delete";
@@ -48,20 +50,53 @@ public static class Permissions
     public const string GoodRead = "good.read";
     public const string GoodCreate = "good.create";
     public const string GoodStatus = "good.status";
+    public const string GoodInRead = "good.in.read";
+    public const string GoodInCreate = "good.in.create";
+    public const string GoodInStatus = "good.in.status";
+    public const string GoodOutRead = "good.out.read";
+    public const string GoodOutCreate = "good.out.create";
+    public const string GoodOutStatus = "good.out.status";
     public const string AuditRead = "audit.read";
     public const string AuditCreate = "audit.create";
     public const string AuditUpdate = "audit.update";
     public const string AuditApprove = "audit.approve";
     public const string DashboardRead = "dashboard.read";
     public const string ReportRead = "report.read";
+    public const string SettingsRead = "settings.read";
     public const string UserManage = "user.manage";
 
     public static readonly string[] All =
     {
-        MasterRead, MasterCreate, MasterUpdate, MasterDelete, AssetRead, AssetCreate, AssetUpdate, AssetImport, AssetExport,
-        GoodRead, GoodCreate, GoodStatus, AuditRead, AuditCreate, AuditUpdate, AuditApprove, DashboardRead, ReportRead, UserManage
+        MasterRead, MasterLookupRead, MasterCreate, MasterUpdate, MasterDelete, AssetRead, AssetCreate, AssetUpdate, AssetImport, AssetExport,
+        GoodRead, GoodCreate, GoodStatus, GoodInRead, GoodInCreate, GoodInStatus, GoodOutRead, GoodOutCreate, GoodOutStatus,
+        AuditRead, AuditCreate, AuditUpdate, AuditApprove, DashboardRead, ReportRead, SettingsRead, UserManage
     };
 
-    /// <summary>Member = everything except delete, approval and user/role management.</summary>
-    public static readonly string[] MemberDefaults = All.Where(p => p != MasterDelete && p != AuditApprove && p != UserManage).ToArray();
+    public static readonly string[] MemberDefaults =
+    {
+        MasterRead, MasterLookupRead, AssetRead, GoodInRead, GoodOutRead, AuditRead, DashboardRead, ReportRead, SettingsRead
+    };
+
+    public static readonly string[] MemberCreatable =
+    {
+        MasterCreate, AssetCreate, GoodInCreate, GoodOutCreate, AuditCreate
+    };
+
+    public static readonly IReadOnlyDictionary<string, string[]> PagePermissions =
+        new Dictionary<string, string[]>(StringComparer.Ordinal)
+        {
+            ["asset-inventory"] = new[] { MasterLookupRead, AssetRead, AssetCreate, AssetUpdate, AssetImport, AssetExport },
+            ["goods-in"] = new[] { MasterLookupRead, AssetRead, GoodInRead, GoodInCreate, GoodInStatus },
+            ["goods-out"] = new[] { MasterLookupRead, AssetRead, GoodOutRead, GoodOutCreate, GoodOutStatus },
+            ["stock-opname"] = new[] { MasterLookupRead, AssetRead, AuditRead, AuditCreate, AuditUpdate, AuditApprove },
+            ["master-data"] = new[] { MasterLookupRead, MasterRead, MasterCreate, MasterUpdate, MasterDelete },
+            ["reports"] = new[] { ReportRead },
+            ["dashboard"] = new[] { MasterLookupRead, AssetRead, GoodInRead, GoodOutRead, AuditRead, DashboardRead },
+            ["settings"] = new[] { SettingsRead },
+        };
+
+    public static readonly IReadOnlyDictionary<string, string> PageMarkers =
+        PagePermissions.Keys.ToDictionary(page => page, page => $"page.{page}", StringComparer.Ordinal);
+
+    public static readonly string[] AllPageMarkers = PageMarkers.Values.ToArray();
 }

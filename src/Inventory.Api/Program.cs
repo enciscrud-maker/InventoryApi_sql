@@ -1,4 +1,5 @@
 using System.Text;
+using System.Security.Claims;
 using System.Text.Json.Serialization;
 using FluentValidation;
 using Inventory.Api.Infrastructure;
@@ -13,6 +14,7 @@ using Inventory.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Options;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
@@ -74,20 +76,36 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
         };
         o.Events = new JwtBearerEvents
         {
-            OnTokenValidated = ctx =>
+            OnTokenValidated = async ctx =>
             {
                 var revocation = ctx.HttpContext.RequestServices.GetRequiredService<ITokenRevocation>();
                 var jti = ctx.Principal?.FindFirst("jti")?.Value;
                 if (ctx.Principal?.FindFirst("token_use")?.Value != "access" || (jti is not null && revocation.IsRevoked(jti)))
+                {
                     ctx.Fail("Invalid or revoked token.");
-                return Task.CompletedTask;
+                    return;
+                }
+
+                if (ctx.Principal?.HasClaim("is_main_admin", "true") != true &&
+                    int.TryParse(ctx.Principal?.FindFirst("sub")?.Value, out var userId))
+                {
+                    var db = ctx.HttpContext.RequestServices.GetRequiredService<AppDbContext>();
+                    var isMainAdmin = await db.Users.AsNoTracking().AnyAsync(
+                        user => user.UserId == userId &&
+                                (user.IsMainAdmin || user.Employee.EmployeeNik == RoleNames.MainAdminNik),
+                        ctx.HttpContext.RequestAborted);
+                    var identity = ctx.Principal?.Identity as ClaimsIdentity;
+                    if (isMainAdmin && identity is not null)
+                        identity.AddClaim(new Claim("is_main_admin", "true"));
+                }
             }
         };
     });
 builder.Services.AddAuthorization(o =>
 {
     foreach (var p in Permissions.All)
-        o.AddPolicy(p, policy => policy.RequireAuthenticatedUser().RequireClaim("permission", p));
+        o.AddPolicy(p, policy => policy.RequireAuthenticatedUser().RequireAssertion(ctx =>
+            ctx.User.HasClaim("is_main_admin", "true") || ctx.User.HasClaim("permission", p)));
 });
 
 // ---------- CORS ----------

@@ -51,7 +51,8 @@ public record RefreshTokenInfo(int UserId, string Jti, DateTime ExpiresAt);
 
 public interface ITokenService
 {
-    TokenResult CreateAccessToken(int userId, string name, string email, string nik, IEnumerable<string> roles, IEnumerable<string> permissions);
+    TokenResult CreateAccessToken(int userId, string name, string email, string nik, IEnumerable<string> roles,
+        IEnumerable<string> permissions, IEnumerable<string> pagePermissions, bool isMainAdmin);
     TokenResult CreateRefreshToken(int userId);
     RefreshTokenInfo? ValidateRefreshToken(string token);
 }

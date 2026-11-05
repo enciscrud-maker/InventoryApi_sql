@@ -34,7 +34,8 @@ public class JwtTokenService(IOptions<JwtOptions> options) : ITokenService
 
     private SigningCredentials Credentials => new(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_o.Key)), SecurityAlgorithms.HmacSha256);
 
-    public TokenResult CreateAccessToken(int userId, string name, string email, string nik, IEnumerable<string> roles, IEnumerable<string> permissions)
+    public TokenResult CreateAccessToken(int userId, string name, string email, string nik, IEnumerable<string> roles,
+        IEnumerable<string> permissions, IEnumerable<string> pagePermissions, bool isMainAdmin)
     {
         var jti = Guid.NewGuid().ToString("N");
         var claims = new List<Claim>
@@ -42,8 +43,10 @@ public class JwtTokenService(IOptions<JwtOptions> options) : ITokenService
             new("sub", userId.ToString()), new("jti", jti), new("token_use", "access"),
             new("name", name), new("email", email), new("nik", nik)
         };
+        if (isMainAdmin) claims.Add(new Claim("is_main_admin", "true"));
         claims.AddRange(roles.Select(r => new Claim("role", r)));
         claims.AddRange(permissions.Distinct().Select(p => new Claim("permission", p)));
+        claims.AddRange(pagePermissions.Distinct().Select(p => new Claim("page_permission", p)));
         var expires = DateTime.UtcNow.AddMinutes(_o.AccessTokenMinutes);
         var token = new JwtSecurityToken(_o.Issuer, _o.Audience, claims, DateTime.UtcNow, expires, Credentials);
         return new TokenResult(_handler.WriteToken(token), expires, jti);

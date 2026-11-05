@@ -75,7 +75,7 @@ public class GoodsTests(ApiFixture fx)
     [Fact]
     public async Task Status_change_writes_one_history_row_without_reapplying_stock()
     {
-        var m = await fx.MemberAsync();
+        var m = await fx.AdminAsync();
         var asset = await fx.CreateAssetAsync(m, 10);
         var created = await J(await m.PostAsJsonAsync("/api/goods-out", GoodBody(TransactionType.Borrowing, asset, 3)));
         var id = created["goodId"]!.GetValue<int>();
@@ -88,7 +88,7 @@ public class GoodsTests(ApiFixture fx)
         hist.Count.Should().Be(1);
         hist[0]!["previousStatus"]!.GetValue<string>().Should().Be("InProgress");
         hist[0]!["newStatus"]!.GetValue<string>().Should().Be("Completed");
-        hist[0]!["actorNik"]!.GetValue<string>().Should().StartWith("NIK");
+        hist[0]!["actorNik"]!.GetValue<string>().Should().Be("0000000001");
         (await fx.QuantityAsync(m, asset)).Should().Be(7);
 
         (await m.PatchAsJsonAsync($"/api/goods-out/{id}/status", new { status = "Bogus" })).StatusCode.Should().Be(HttpStatusCode.BadRequest);

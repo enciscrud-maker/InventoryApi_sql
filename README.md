@@ -30,7 +30,9 @@ dotnet ef database update -p src/Inventory.Infrastructure -s src/Inventory.Api
 Setelah ada migration, startup otomatis memanggil `Migrate()`.
 Perubahan skema tidak diterapkan ke database lama oleh `EnsureCreated`; buat dan jalankan migration sebelum memakai database yang sudah ada.
 
-Untuk database legacy sebelum pemisahan master business unit/status aset, hentikan API, buat dan verifikasi backup database, lalu jalankan `src/Inventory.Infrastructure/Persistence/UpgradeLegacySchema.sql` terhadap database API. Script ini bersifat transaksional dan akan berhenti tanpa perubahan jika tabel aset, lokasi, goods, atau stock opname sudah berisi data legacy yang perlu dipetakan manual. Kolom/tabel lama yang tidak lagi dipakai tetap dipertahankan. Script ini juga menambahkan `ActualLocationId` untuk lokasi aktual tiap item stock opname.
+Untuk database legacy sebelum pemisahan master business unit/status aset, hentikan API, buat dan verifikasi backup database, lalu jalankan `src/Inventory.Infrastructure/Persistence/UpgradeLegacySchema.sql` terhadap database API yang sama. Script ini bersifat transaksional dan akan berhenti tanpa perubahan jika tabel aset, lokasi, goods, atau stock opname sudah berisi data legacy yang perlu dipetakan manual. Kolom/tabel lama yang tidak lagi dipakai tetap dipertahankan. Script ini juga menambahkan `ActualLocationId` untuk lokasi aktual tiap item stock opname dan kolom `MD_User.IsMainAdmin` secara aditif.
+
+Saat startup, akun dengan NIK `0000000001` ditetapkan sebagai satu-satunya Main Admin dan diberi role Admin. Autentikasi juga mengenali NIK tersebut sebagai Main Admin jika flag database belum tersinkron; akun itu mendapat seluruh izin API dan akses halaman. Jika sebelumnya ada Main Admin lain, penetapan dipindahkan ke akun tersebut. Jika akun dengan NIK tersebut belum ada, seeder mempertahankan fallback sebelumnya: akun ber-role Admin dengan `UserId` terkecil menjadi Main Admin bila belum ada yang ditetapkan. Pastikan menjalankan skrip upgrade sebelum memakai build ini pada database lama.
 
 ### Konfigurasi produksi
 - `Jwt__Key` (>= 32 karakter, WAJIB diganti), `ConnectionStrings__DefaultConnection`.
@@ -51,7 +53,7 @@ Cakupan: login/refresh, RBAC (401/403), validasi hierarki, import CSV/XLSX, stok
 6. **PUT /api/assets tidak mengubah Quantity**; stok hanya berubah lewat Goods In/Out. Kirim `rowVersion` untuk optimistic concurrency.
 7. **Nomor dokumen**: `GI-yyyyMMdd-0001`, `GO-...`, `SO-...`; penomoran diserialkan dengan `sp_getapplock` di dalam transaksi.
 8. **Disposal** mengubah `ConditionId` aset ke kondisi dengan kode `DISPOSAL` (di-seed).
-9. **Permission** (claim JWT `permission`): Admin semua; Member semua kecuali `master.delete` dan `user.manage`. Seed ada di `DbSeeder`.
+9. **Permission**: Main Admin melewati seluruh policy; Admin mendapat izin CRUD yang didukung hanya pada halaman terpilih; Member selalu mendapat izin baca dan hanya izin create pada halaman terpilih. Izin halaman goods-in dan goods-out dibedakan pada API. Manajemen akun (`user.manage`) hanya untuk Main Admin.
 10. **Import**: baris valid di-insert (satu transaksi), baris invalid dilaporkan; kolom opsional `category_code`, `group_code`, `type_code`, `brand_code`; maks 5000 baris / 5 MB. `Quantity` selalu 0.
 11. Index unik tambahan pada `CFG_Role.RoleName` dan `CFG_Permission.PermissionName`; CHECK constraint `Quantity >= 0` (aset) dan `Quantity > 0` (detail).
 12. Kolom `CFG_ModelRole.model_id` memakai snake_case persis seperti ERD, sedangkan `CFG_ModelPermission.ModelId` PascalCase.

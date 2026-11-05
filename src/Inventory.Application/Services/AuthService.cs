@@ -35,28 +35,65 @@ public class AuthService(IAppDbContext db, IPasswordHasher hasher, ITokenService
     {
         var user = await db.Users.AsNoTracking().Include(u => u.Employee).FirstOrDefaultAsync(u => u.UserId == userId, ct)
             ?? throw new NotFoundException("User");
-        var (roles, perms) = await LoadAuthzAsync(userId, ct);
-        return ToProfile(user, roles, perms);
+        var (roles, perms, pages, isMainAdmin) = await LoadAuthzAsync(userId, ct);
+        return ToProfile(user, roles, perms, pages, isMainAdmin);
     }
 
     private async Task<AuthResponse> IssueAsync(MdUser user, CancellationToken ct)
     {
-        var (roles, perms) = await LoadAuthzAsync(user.UserId, ct);
-        var access = tokens.CreateAccessToken(user.UserId, user.Employee.EmployeeName, user.EmployeeEmail, user.Employee.EmployeeNik, roles, perms);
+        var (roles, perms, pages, isMainAdmin) = await LoadAuthzAsync(user.UserId, ct);
+        var access = tokens.CreateAccessToken(user.UserId, user.Employee.EmployeeName, user.EmployeeEmail,
+            user.Employee.EmployeeNik, roles, perms, pages, isMainAdmin);
         var refresh = tokens.CreateRefreshToken(user.UserId);
-        return new AuthResponse(access.Token, refresh.Token, access.ExpiresAt, ToProfile(user, roles, perms));
+        return new AuthResponse(access.Token, refresh.Token, access.ExpiresAt, ToProfile(user, roles, perms, pages, isMainAdmin));
     }
 
-    public async Task<(List<string> Roles, List<string> Permissions)> LoadAuthzAsync(int userId, CancellationToken ct)
+    public async Task<(List<string> Roles, List<string> Permissions, List<string> PagePermissions, bool IsMainAdmin)> LoadAuthzAsync(int userId, CancellationToken ct)
     {
+        var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.UserId == userId, ct)
+            ?? throw new AppException(401, "Unauthorized", "User no longer exists.");
+        var isMainAdmin = user.IsMainAdmin || await db.Employees.AnyAsync(
+            e => e.EmployeeId == user.EmployeeId && e.EmployeeNik == RoleNames.MainAdminNik, ct);
         var roleIds = db.ModelRoles.Where(m => m.ModelId == userId).Select(m => m.RoleId);
         var roles = await db.Roles.Where(r => roleIds.Contains(r.RoleId)).Select(r => r.RoleName).ToListAsync(ct);
-        var permIds = db.RolePermissions.Where(rp => roleIds.Contains(rp.RoleId)).Select(rp => rp.PermissionId)
-            .Union(db.ModelPermissions.Where(mp => mp.ModelId == userId).Select(mp => mp.PermissionId));
-        var perms = await db.Permissions.Where(p => permIds.Contains(p.PermissionId)).Select(p => p.PermissionName).ToListAsync(ct);
-        return (roles, perms);
+        var pagePermissionNames = await db.ModelPermissions
+            .Where(mp => mp.ModelId == userId)
+            .Join(db.Permissions, mp => mp.PermissionId, p => p.PermissionId, (_, p) => p.PermissionName)
+            .ToListAsync(ct);
+        var pages = isMainAdmin
+            ? Permissions.PagePermissions.Keys.ToList()
+            : Permissions.PageMarkers
+                .Where(marker => pagePermissionNames.Contains(marker.Value, StringComparer.Ordinal))
+                .Select(marker => marker.Key)
+                .ToList();
+        if (isMainAdmin) return (roles, Permissions.All.ToList(), pages, true);
+
+        var rolePermissionIds = db.RolePermissions
+            .Where(rp => roleIds.Contains(rp.RoleId))
+            .Join(db.Roles, rp => rp.RoleId, r => r.RoleId, (rp, r) => new { rp.PermissionId, r.RoleName })
+            .Where(x => x.RoleName != RoleNames.Admin)
+            .Select(x => x.PermissionId);
+        var directPermissionIds = db.ModelPermissions
+            .Where(mp => mp.ModelId == userId)
+            .Select(mp => mp.PermissionId);
+        var permissionNames = await db.Permissions
+            .Where(p => rolePermissionIds.Contains(p.PermissionId) || directPermissionIds.Contains(p.PermissionId))
+            .Select(p => p.PermissionName)
+            .Distinct()
+            .ToListAsync(ct);
+
+        var isMember = roles.Contains(RoleNames.Member);
+        var perms = isMember
+            ? Permissions.MemberDefaults
+                .Concat(permissionNames.Where(p => Permissions.MemberCreatable.Contains(p, StringComparer.Ordinal)))
+                .Distinct(StringComparer.Ordinal)
+                .ToList()
+            : permissionNames;
+        perms.Remove(Permissions.UserManage);
+        return (roles, perms, pages, false);
     }
 
-    private static UserProfileDto ToProfile(MdUser u, IReadOnlyList<string> roles, IReadOnlyList<string> perms) =>
-        new(u.UserId, u.EmployeeId, u.Employee.EmployeeName, u.EmployeeEmail, u.Employee.EmployeeNik, u.ProfilePhotoUrl, roles, perms);
+    private static UserProfileDto ToProfile(MdUser u, IReadOnlyList<string> roles, IReadOnlyList<string> perms, IReadOnlyList<string> pages, bool isMainAdmin) =>
+        new(u.UserId, u.EmployeeId, u.Employee.EmployeeName, u.EmployeeEmail, u.Employee.EmployeeNik,
+            u.ProfilePhotoUrl, roles, perms, pages, isMainAdmin);
 }

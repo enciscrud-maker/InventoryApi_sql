@@ -4,10 +4,10 @@ namespace Inventory.Api.Controllers;
 [ApiController, Authorize, Produces("application/json")]
 public abstract class MasterControllerBase<TReq, TDto>(IMasterService<TReq, TDto> svc) : ControllerBase
 {
-    [HttpGet, Authorize(Policy = Permissions.MasterRead)]
+    [HttpGet, Authorize(Policy = Permissions.MasterLookupRead)]
     public async Task<ActionResult<PagedResult<TDto>>> List([FromQuery] PageQuery q, CancellationToken ct) => Ok(await svc.ListAsync(q, ct));
 
-    [HttpGet("{id:int}"), Authorize(Policy = Permissions.MasterRead)]
+    [HttpGet("{id:int}"), Authorize(Policy = Permissions.MasterLookupRead)]
     public async Task<ActionResult<TDto>> Get(int id, CancellationToken ct) => Ok(await svc.GetAsync(id, ct));
 
     [HttpPost, Authorize(Policy = Permissions.MasterCreate)]

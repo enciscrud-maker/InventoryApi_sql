@@ -17,6 +17,7 @@ public static class DbSeeder
         await SeedSecurityAsync(db, ct);
         await SeedLookupsAsync(db, ct);
         await SeedAdminAsync(db, hasher, cfg, ct);
+        await EnsureMainAdminAsync(db, ct);
         if (cfg.GetValue<bool>("Seed:SampleData")) await SeedSampleAsync(db, ct);
     }
 
@@ -26,22 +27,76 @@ public static class DbSeeder
         foreach (var name in new[] { RoleNames.Admin, RoleNames.Member })
             if (!await db.Roles.AnyAsync(r => r.RoleName == name, ct))
                 db.Roles.Add(new CfgRole { RoleName = name, GuardName = RoleNames.Guard, CreatedAt = now });
-        foreach (var p in Permissions.All)
+        foreach (var p in Permissions.All.Concat(Permissions.AllPageMarkers))
             if (!await db.Permissions.AnyAsync(x => x.PermissionName == p, ct))
                 db.Permissions.Add(new CfgPermission { PermissionName = p, GuardName = RoleNames.Guard, CreatedAt = now });
         await db.SaveChangesAsync(ct);
 
         var roles = await db.Roles.ToDictionaryAsync(r => r.RoleName, ct);
         var perms = await db.Permissions.ToDictionaryAsync(p => p.PermissionName, ct);
-        var existing = (await db.RolePermissions.ToListAsync(ct)).Select(x => (x.RoleId, x.PermissionId)).ToHashSet();
-        void Grant(string role, IEnumerable<string> names)
+        var desiredGrants = new Dictionary<string, string[]>(StringComparer.Ordinal)
         {
-            foreach (var n in names)
-                if (!existing.Contains((roles[role].RoleId, perms[n].PermissionId)))
-                    db.RolePermissions.Add(new CfgRolePermission { RoleId = roles[role].RoleId, PermissionId = perms[n].PermissionId });
+            [RoleNames.Admin] = Array.Empty<string>(),
+            [RoleNames.Member] = Permissions.MemberDefaults,
+        };
+        foreach (var (roleName, permissionNames) in desiredGrants)
+        {
+            var roleId = roles[roleName].RoleId;
+            var desiredIds = permissionNames.Select(n => perms[n].PermissionId).ToHashSet();
+            var current = await db.RolePermissions.Where(x => x.RoleId == roleId).ToListAsync(ct);
+            db.RolePermissions.RemoveRange(current.Where(x => !desiredIds.Contains(x.PermissionId)));
+            var currentIds = current.Select(x => x.PermissionId).ToHashSet();
+            db.RolePermissions.AddRange(desiredIds.Except(currentIds)
+                .Select(permissionId => new CfgRolePermission { RoleId = roleId, PermissionId = permissionId }));
         }
-        Grant(RoleNames.Admin, Permissions.All);
-        Grant(RoleNames.Member, Permissions.MemberDefaults);
+        await db.SaveChangesAsync(ct);
+    }
+
+    private static async Task EnsureMainAdminAsync(AppDbContext db, CancellationToken ct)
+    {
+        var designatedUsers = await db.Users
+            .Where(u => u.Employee.EmployeeNik == RoleNames.MainAdminNik)
+            .ToListAsync(ct);
+        if (designatedUsers.Count > 1)
+            throw new InvalidOperationException($"More than one user is associated with NIK {RoleNames.MainAdminNik}.");
+        if (designatedUsers.Count == 1)
+        {
+            var designated = designatedUsers[0];
+            var adminRole = await db.Roles.SingleAsync(r => r.RoleName == RoleNames.Admin, ct);
+            var currentRoles = await db.ModelRoles.Where(m => m.ModelId == designated.UserId).ToListAsync(ct);
+
+            await using var tx = await db.Database.BeginTransactionAsync(ct);
+            var otherMainAdmins = await db.Users
+                .Where(u => u.IsMainAdmin && u.UserId != designated.UserId)
+                .ToListAsync(ct);
+            foreach (var user in otherMainAdmins) user.IsMainAdmin = false;
+            if (otherMainAdmins.Count > 0) await db.SaveChangesAsync(ct);
+
+            db.ModelRoles.RemoveRange(currentRoles.Where(m => m.RoleId != adminRole.RoleId));
+            if (currentRoles.All(m => m.RoleId != adminRole.RoleId))
+                db.ModelRoles.Add(new CfgModelRole { RoleId = adminRole.RoleId, ModelId = designated.UserId });
+            designated.IsMainAdmin = true;
+            await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+            return;
+        }
+
+        var mainAdmins = await db.Users.Where(u => u.IsMainAdmin).OrderBy(u => u.UserId).ToListAsync(ct);
+        if (mainAdmins.Count > 1)
+            throw new InvalidOperationException("More than one Main Admin is configured. Resolve the duplicate Main Admin flag before startup.");
+        if (mainAdmins.Count == 1) return;
+
+        var firstAdmin = await (
+            from user in db.Users
+            join modelRole in db.ModelRoles on user.UserId equals modelRole.ModelId
+            join role in db.Roles on modelRole.RoleId equals role.RoleId
+            where role.RoleName == RoleNames.Admin
+            orderby user.UserId
+            select user
+        ).FirstOrDefaultAsync(ct);
+        if (firstAdmin is null) return;
+
+        firstAdmin.IsMainAdmin = true;
         await db.SaveChangesAsync(ct);
     }
 

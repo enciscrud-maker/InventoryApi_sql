@@ -1,4 +1,8 @@
 using Microsoft.AspNetCore.Hosting;
+using Inventory.Application.Abstractions;
+using Inventory.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
@@ -41,13 +45,52 @@ public class ApiFixture : IAsyncLifetime
 
     public Task<HttpClient> AdminAsync() => LoginAsync("admin@inventory.local", AdminPassword);
 
+    public async Task SetDesignatedMainAdminFlagAsync(bool isMainAdmin)
+    {
+        await using var scope = Factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var user = await db.Users.Include(u => u.Employee)
+            .SingleAsync(u => u.Employee.EmployeeNik == RoleNames.MainAdminNik);
+        user.IsMainAdmin = isMainAdmin;
+        await db.SaveChangesAsync();
+    }
+
+    public async Task<HttpClient> LoginWithoutMainAdminClaimAsync(string nik)
+    {
+        await using var scope = Factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var user = await db.Users.Include(u => u.Employee)
+            .SingleAsync(u => u.Employee.EmployeeNik == nik);
+        var tokens = scope.ServiceProvider.GetRequiredService<ITokenService>();
+        var access = tokens.CreateAccessToken(user.UserId, user.EmployeeName, user.EmployeeEmail,
+            user.Employee.EmployeeNik, new[] { RoleNames.Admin }, Array.Empty<string>(), Array.Empty<string>(), false);
+        var client = Factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", access.Token);
+        return client;
+    }
+
     /// <summary>Creates an employee + Member user through the admin API and returns a logged-in client.</summary>
-    public async Task<HttpClient> MemberAsync()
+    public async Task<HttpClient> MemberAsync(params string[] pagePermissions)
     {
         var admin = await AdminAsync();
         var n = Guid.NewGuid().ToString("N")[..8];
-        var emp = await (await admin.PostAsJsonAsync("/api/employees", new { employeeName = "Member " + n, employeeNik = "NIK" + n, department = "Ops" })).Content.ReadFromJsonAsync<JsonNode>();
-        var res = await admin.PostAsJsonAsync("/api/users", new { employeeId = emp!["employeeId"]!.GetValue<int>(), employeeEmail = $"m{n}@test.local", password = "Member#12345" });
+        var permissions = pagePermissions.Length == 0
+            ? new[] { "dashboard", "asset-inventory", "goods-in", "goods-out", "stock-opname", "master-data", "reports", "settings" }
+            : pagePermissions;
+        var res = await admin.PostAsJsonAsync("/api/accounts", new
+        {
+            employeeName = "Member " + n,
+            employeeNik = "NIK" + n,
+            employeeEmail = $"m{n}@test.local",
+            employeePhone = "555-0100",
+            position = "Operator",
+            department = "Ops",
+            businessUnit = "HQ",
+            password = "Member#12345",
+            role = "Member",
+            pagePermissions = permissions,
+            isActive = true
+        });
         res.EnsureSuccessStatusCode();
         return await LoginAsync($"m{n}@test.local", "Member#12345");
     }

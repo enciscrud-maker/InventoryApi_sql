@@ -20,6 +20,14 @@ public class EmployeesController(EmployeeService svc) : ControllerBase
 [ApiController, Authorize(Policy = Permissions.UserManage), Produces("application/json")]
 public class UsersController(UserService svc) : ControllerBase
 {
+    [HttpPost("api/accounts")]
+    public async Task<ActionResult<UserDto>> CreateManaged(ManagedAccountRequest r, CancellationToken ct) =>
+        StatusCode(201, await svc.CreateManagedAccountAsync(r, ct));
+
+    [HttpPut("api/accounts/{id:int}")]
+    public async Task<ActionResult<UserDto>> UpdateManaged(int id, ManagedAccountRequest r, CancellationToken ct) =>
+        Ok(await svc.UpdateManagedAccountAsync(id, r, ct));
+
     [HttpGet("api/users")]
     public async Task<ActionResult<PagedResult<UserDto>>> List([FromQuery] UserQuery q, CancellationToken ct) => Ok(await svc.ListAsync(q, ct));
 
@@ -44,7 +52,7 @@ public class UsersController(UserService svc) : ControllerBase
     [HttpGet("api/users/{id:int}/permissions")]
     public async Task<ActionResult<UserPermissionsDto>> GetPermissions(int id, CancellationToken ct) => Ok(await svc.GetPermissionsAsync(id, ct));
 
-    /// <summary>Replaces the user's access with exactly the supplied permissions, removing role assignments.</summary>
+    /// <summary>Replaces direct permission assignments while retaining the user's role and baseline read access.</summary>
     [HttpPost("api/users/{id:int}/permissions")]
     public async Task<ActionResult<UserPermissionsDto>> SetPermissions(int id, UserPermissionsRequest r, CancellationToken ct) =>
         Ok(await svc.SetPermissionsAsync(id, r.PermissionIds, ct));
