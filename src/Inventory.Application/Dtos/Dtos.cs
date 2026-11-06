@@ -139,7 +139,7 @@ public record AuditItemDto(int StockOpnameDetailId, int AssetId, string AssetNam
     public string AssetCode { get; init; } = AssetPrefix;
 }
 public record AuditListItemDto(int StockOpnameId, string StockOpnameNumber, string StockOpnameName, DateTime AuditDate, StockOpnameType StockOpnameType, string StockOpnameStatus,
-    string? BusinessUnit, int? BusUnitId, int ItemCount, int DiscrepancyCount);
+    string? BusinessUnit, int? BusUnitId, int ItemCount, int DiscrepancyCount, bool IsVerified);
 public record AuditDetailDto(int StockOpnameId, string StockOpnameNumber, string StockOpnameName, DateTime AuditDate, StockOpnameType StockOpnameType, string StockOpnameStatus,
     string StockOpnamePrefix, int AssetId, int AuditorUserId, string? BusinessUnit, int? BusUnitId, DateTime CreatedDt, DateTime? UpdatedDt, IReadOnlyList<AuditItemDto> Items);
 public class AuditQuery : PageQuery

@@ -73,6 +73,64 @@ public class AuditTests(ApiFixture fx)
     }
 
     [Fact]
+    public async Task Audit_list_marks_verified_only_when_all_assets_match_and_are_confirmed()
+    {
+        var admin = await fx.AdminAsync();
+        var units = await ApiFixture.J(await admin.GetAsync("/api/business-units"));
+        var unit = units["items"]!.AsArray()[0]!;
+        var businessUnitId = unit["busUnitId"]!.GetValue<int>();
+        var businessUnit = unit["busUnitCode"]!.GetValue<string>();
+        var assetId = await fx.CreateAssetAsync(admin, 4, businessUnitId: businessUnitId);
+        var audit = await CreateAuditAsync(admin, businessUnit, businessUnitId, assetId);
+        var auditId = audit["stockOpnameId"]!.GetValue<int>();
+        var item = audit["items"]!.AsArray().Single()!;
+        var detailId = item["stockOpnameDetailId"]!.GetValue<int>();
+        var systemQuantity = item["systemQuantity"]!.GetValue<int>();
+
+        async Task<bool> IsVerifiedAsync()
+        {
+            var response = await admin.GetAsync("/api/stock-audits?page=1&pageSize=100");
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+            var result = await ApiFixture.J(response);
+            return result["items"]!.AsArray()
+                .Single(row => row!["stockOpnameId"]!.GetValue<int>() == auditId)!
+                ["isVerified"]!.GetValue<bool>();
+        }
+
+        (await IsVerifiedAsync()).Should().BeFalse();
+
+        async Task UpdateFindingAsync(string finding, int physicalQuantity, bool confirmed = true)
+        {
+            var response = await admin.PutAsJsonAsync($"/api/stock-audits/{auditId}/items", new
+            {
+                items = new[]
+                {
+                    new
+                    {
+                        stockOpnameDetailId = detailId,
+                        assetId,
+                        physicalQuantity,
+                        actualLocationId = (int?)null,
+                        finding,
+                        isConfirmed = confirmed,
+                        notes = (string?)null
+                    }
+                }
+            });
+            response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        }
+
+        await UpdateFindingAsync("Fisik ada data berbeda", systemQuantity + 1);
+        (await IsVerifiedAsync()).Should().BeFalse();
+
+        await UpdateFindingAsync("Match", systemQuantity, confirmed: false);
+        (await IsVerifiedAsync()).Should().BeFalse();
+
+        await UpdateFindingAsync("Match", systemQuantity);
+        (await IsVerifiedAsync()).Should().BeTrue();
+    }
+
+    [Fact]
     public async Task Delete_stock_audit_removes_only_session_details_and_requires_delete_permission()
     {
         var admin = await fx.AdminAsync();

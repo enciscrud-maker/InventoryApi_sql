@@ -29,7 +29,8 @@ public class AuditService(IAppDbContext db, ICurrentUser current, IFileStorage s
             _ => x.OrderByDir(a => a.AuditDate, desc).ThenByDescending(a => a.StockOpnameId)
         };
         return await sorted.Select(a => new AuditListItemDto(a.StockOpnameId, a.StockOpnameNumber, a.StockOpnameName, a.AuditDate, a.StockOpnameType, a.StockOpnameStatus,
-            a.BusinessUnit, a.BusUnitId, a.Details.Count(), a.Details.Count(d => d.PhysicalQuantity != d.SystemQuantity))).ToPagedAsync(q, ct);
+            a.BusinessUnit, a.BusUnitId, a.Details.Count(), a.Details.Count(d => d.PhysicalQuantity != d.SystemQuantity),
+            a.Details.Any() && a.Details.All(d => d.IsConfirmed && d.Finding == "Match"))).ToPagedAsync(q, ct);
     }
 
     public async Task<AuditDetailDto> GetAsync(int id, CancellationToken ct)

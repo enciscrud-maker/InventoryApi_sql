@@ -46,7 +46,8 @@ public class ReportService(AssetService assets, GoodService goods, AuditService 
             case "audits":
             {
                 var items = await audits.Filtered(ToAuditQuery(q)).OrderByDescending(a => a.AuditDate).Select(a => new AuditListItemDto(a.StockOpnameId, a.StockOpnameNumber, a.StockOpnameName,
-                    a.AuditDate, a.StockOpnameType, a.StockOpnameStatus, a.BusinessUnit, a.BusUnitId, a.Details.Count(), a.Details.Count(d => d.PhysicalQuantity != d.SystemQuantity))).ToListAsync(ct);
+                    a.AuditDate, a.StockOpnameType, a.StockOpnameStatus, a.BusinessUnit, a.BusUnitId, a.Details.Count(), a.Details.Count(d => d.PhysicalQuantity != d.SystemQuantity),
+                    a.Details.Any() && a.Details.All(d => d.IsConfirmed && d.Finding == "Match"))).ToListAsync(ct);
                 var bytes = ExcelHelper.Build("Audits", new[] { "StockOpnameNumber", "Name", "AuditDate (UTC)", "Type", "Status", "BusinessUnit", "Items", "Discrepancies" },
                     items.Select(i => new object?[] { i.StockOpnameNumber, i.StockOpnameName, i.AuditDate, i.StockOpnameType, i.StockOpnameStatus, i.BusinessUnit, i.ItemCount, i.DiscrepancyCount }));
                 return (bytes, $"audits-{stamp}.xlsx");
