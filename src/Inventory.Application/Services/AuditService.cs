@@ -39,10 +39,52 @@ public class AuditService(IAppDbContext db, ICurrentUser current, IFileStorage s
         return ToDto(a);
     }
 
+    public async Task DeleteAsync(int id, CancellationToken ct)
+    {
+        var audit = await db.StockOpnames.Include(x => x.Details)
+            .FirstOrDefaultAsync(x => x.StockOpnameId == id, ct)
+            ?? throw new NotFoundException($"Stock audit {id}");
+        var evidencePaths = audit.Details
+            .Select(detail => detail.EvidencePath)
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        await using (var tx = await db.Database.BeginTransactionAsync(ct))
+        {
+            db.StockOpnameDetails.RemoveRange(audit.Details);
+            db.StockOpnames.Remove(audit);
+            await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+        }
+
+        foreach (var path in evidencePaths)
+            await storage.DeleteAsync(path!, ct);
+    }
+
     public async Task<AuditDetailDto> CreateAsync(AuditCreateRequest r, CancellationToken ct)
     {
         var userId = current.UserId ?? throw new AppException(401, "Unauthorized", "Authenticated user is required.");
-        var asset = await db.Assets.AsNoTracking().FirstOrDefaultAsync(a => a.AssetId == r.AssetId, ct) ?? throw new ValidationFailedException("assetId", "Asset does not exist.");
+        var assetIds = r.AssetIds ?? new List<int> { r.AssetId };
+        if (assetIds.Count == 0)
+            throw new ValidationFailedException("assetIds", "At least one asset must be selected.");
+        if (assetIds.Distinct().Count() != assetIds.Count)
+            throw new ValidationFailedException("assetIds", "An asset cannot be selected more than once.");
+        if (assetIds[0] != r.AssetId)
+            throw new ValidationFailedException("assetId", "AssetId must match the first selected asset.");
+        if (!r.BusUnitId.HasValue)
+            throw new ValidationFailedException("busUnitId", "A Business Unit is required.");
+
+        var assets = await db.Assets.AsNoTracking()
+            .Where(a => assetIds.Contains(a.AssetId))
+            .ToDictionaryAsync(a => a.AssetId, ct);
+        var missingAssetIds = assetIds.Where(id => !assets.ContainsKey(id)).ToList();
+        if (missingAssetIds.Count > 0)
+            throw new ValidationFailedException("assetIds", $"Assets not found: {string.Join(", ", missingAssetIds)}.");
+        if (assets.Values.Any(asset => asset.BusUnitId != r.BusUnitId))
+            throw new ValidationFailedException("assetIds", "Every selected asset must belong to the selected Business Unit.");
+
+        var asset = assets[r.AssetId];
         var status = NormalizeStatus(r.StockOpnameStatus) ?? StockOpnameStatuses.Draft;
         await EnsureBusinessUnitAsync(r.BusUnitId, ct);
 
@@ -60,6 +102,20 @@ public class AuditService(IAppDbContext db, ICurrentUser current, IFileStorage s
             CreatedDt = now, StockOpnameNumber = $"{stem}{seq:D4}", AuditDate = Time.ToUtc(r.AuditDate), BusinessUnit = r.BusinessUnit?.Trim(), BusUnitId = r.BusUnitId
         };
         db.StockOpnames.Add(audit);
+        db.StockOpnameDetails.AddRange(assetIds.Select(assetId =>
+        {
+            var selectedAsset = assets[assetId];
+            return new TrStockOpnameDetail
+            {
+                StockOpname = audit,
+                AssetId = selectedAsset.AssetId,
+                SystemQuantity = selectedAsset.Quantity,
+                PhysicalQuantity = selectedAsset.Quantity,
+                ActualLocationId = selectedAsset.LocationId,
+                Finding = "Unverified",
+                IsConfirmed = false
+            };
+        }));
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
         return await GetAsync(audit.StockOpnameId, ct);
@@ -85,6 +141,8 @@ public class AuditService(IAppDbContext db, ICurrentUser current, IFileStorage s
         if (audit.StockOpnameStatus == StockOpnameStatuses.Completed) throw new ConflictException("A completed audit is read-only.");
 
         var assetIds = r.Items.Select(i => i.AssetId).Distinct().ToList();
+        if (assetIds.Count != r.Items.Count)
+            throw new ValidationFailedException("items", "An asset cannot be selected more than once.");
         var assets = await db.Assets.AsNoTracking().Where(a => assetIds.Contains(a.AssetId)).ToDictionaryAsync(a => a.AssetId, ct);
         var missing = assetIds.Except(assets.Keys).ToList();
         if (missing.Count > 0) throw new ValidationFailedException("items", $"Assets not found: {string.Join(", ", missing)}.");
@@ -111,9 +169,25 @@ public class AuditService(IAppDbContext db, ICurrentUser current, IFileStorage s
                 d = new TrStockOpnameDetail { StockOpnameId = id, AssetId = i.AssetId, SystemQuantity = assets[i.AssetId].Quantity };
                 db.StockOpnameDetails.Add(d);
             }
-            d.PhysicalQuantity = i.PhysicalQuantity; d.ActualLocationId = i.ActualLocationId; d.IsConfirmed = i.IsConfirmed; d.Notes = i.Notes;
-            var variance = d.PhysicalQuantity - d.SystemQuantity;
-            d.Finding = string.IsNullOrWhiteSpace(i.Finding) ? (variance == 0 ? "Match" : variance < 0 ? "Shortage" : "Overage") : i.Finding.Trim();
+            d.PhysicalQuantity = i.PhysicalQuantity ?? d.SystemQuantity;
+            d.ActualLocationId = i.ActualLocationId;
+            d.IsConfirmed = i.IsConfirmed;
+            d.Notes = i.Notes;
+            if (i.PhysicalQuantity is null)
+            {
+                d.Finding = "Unverified";
+            }
+            else
+            {
+                var variance = d.PhysicalQuantity - d.SystemQuantity;
+                d.Finding = string.IsNullOrWhiteSpace(i.Finding)
+                    ? variance == 0
+                        ? "Match"
+                        : variance < 0
+                            ? "Shortage"
+                            : "Overage"
+                    : i.Finding.Trim();
+            }
         }
         audit.UpdatedDt = DateTime.UtcNow;
         if (audit.StockOpnameStatus == StockOpnameStatuses.Draft) audit.StockOpnameStatus = StockOpnameStatuses.InProgress;
@@ -222,8 +296,9 @@ public class AuditService(IAppDbContext db, ICurrentUser current, IFileStorage s
 
     private static string? NormalizeStatus(string? s) => string.IsNullOrWhiteSpace(s) ? null : StockOpnameStatuses.All.FirstOrDefault(x => string.Equals(x, s.Trim(), StringComparison.OrdinalIgnoreCase));
 
-    private static AuditItemDto ToItem(TrStockOpnameDetail d) => new(d.StockOpnameDetailId, d.AssetId, d.Asset.AssetName, d.Asset.AssetPrefix, d.SystemQuantity, d.PhysicalQuantity,
-        d.PhysicalQuantity - d.SystemQuantity, d.ActualLocationId, d.Finding, d.IsConfirmed, d.Notes,
+    private static AuditItemDto ToItem(TrStockOpnameDetail d) => new(d.StockOpnameDetailId, d.AssetId, d.Asset.AssetName, d.Asset.AssetPrefix, d.SystemQuantity,
+        d.Finding == "Unverified" ? null : d.PhysicalQuantity,
+        d.Finding == "Unverified" ? null : d.PhysicalQuantity - d.SystemQuantity, d.ActualLocationId, d.Finding, d.IsConfirmed, d.Notes,
         string.IsNullOrWhiteSpace(d.EvidencePath) ? null : $"/api/stock-audits/{d.StockOpnameId}/items/{d.StockOpnameDetailId}/evidence/1")
     {
         AssetCode = d.Asset.AssetCode

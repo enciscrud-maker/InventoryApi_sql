@@ -106,7 +106,11 @@ public class ApiFixture : IAsyncLifetime
         return (type["catId"]!.GetValue<int>(), type["groupId"]!.GetValue<int>(), type["typeId"]!.GetValue<int>(), brand["brandId"]!.GetValue<int>());
     }
 
-    public async Task<int> CreateAssetAsync(HttpClient c, int quantity, string? prefix = null)
+    public async Task<int> CreateAssetAsync(
+        HttpClient c,
+        int quantity,
+        string? prefix = null,
+        int? businessUnitId = null)
     {
         var h = await SeedHierarchyAsync(await AdminAsync());
         var statuses = await J(await c.GetAsync("/api/asset-statuses?search=Active"));
@@ -117,7 +121,8 @@ public class ApiFixture : IAsyncLifetime
             catId = h.Cat, groupId = h.Group, typeId = h.Type, brandId = h.Brand, assetName = "Test asset", assetType = "In", statusId,
             assetPrefix,
             assetCode = assetPrefix + "00001",
-            quantity
+            quantity,
+            busUnitId = businessUnitId
         });
         res.StatusCode.Should().Be(System.Net.HttpStatusCode.Created, await res.Content.ReadAsStringAsync());
         return (await J(res))["assetId"]!.GetValue<int>();

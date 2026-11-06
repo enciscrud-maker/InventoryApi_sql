@@ -235,6 +235,14 @@ public class AuditCreateRequestValidator : AbstractValidator<AuditCreateRequest>
         RuleFor(x => x.AssetId).GreaterThan(0);
         RuleFor(x => x.AuditDate).NotEmpty();
         RuleFor(x => x.BusinessUnit).MaximumLength(100);
+        RuleFor(x => x.BusUnitId).NotNull().GreaterThan(0);
+        RuleFor(x => x.AssetIds)
+            .Must(ids => ids is null || ids.Count > 0)
+            .WithMessage("At least one asset must be selected.");
+        RuleForEach(x => x.AssetIds).GreaterThan(0);
+        RuleFor(x => x.AssetIds)
+            .Must(ids => ids is null || ids.Distinct().Count() == ids.Count)
+            .WithMessage("An asset cannot be selected more than once.");
         RuleFor(x => x.StockOpnameStatus).Must(s => StockOpnameStatuses.All.Contains(s!, StringComparer.OrdinalIgnoreCase))
             .When(x => !string.IsNullOrWhiteSpace(x.StockOpnameStatus)).WithMessage("Status must be Draft, InProgress or Completed.");
     }

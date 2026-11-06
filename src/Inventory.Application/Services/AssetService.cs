@@ -126,6 +126,16 @@ public class AssetService(IAppDbContext db, IHierarchyValidator hierarchy)
             throw new ConflictException($"SerialNumber '{r.SerialNumber}' already exists.");
         if (r.BusUnitId.HasValue && !await db.BusinessUnits.AnyAsync(b => b.BusUnitId == r.BusUnitId.Value, ct))
             throw new ValidationFailedException("busUnitId", "Business unit does not exist.");
+        if (r.LocationId.HasValue)
+        {
+            var location = await db.Locations.AsNoTracking()
+                .FirstOrDefaultAsync(item => item.LocationId == r.LocationId.Value, ct)
+                ?? throw new ValidationFailedException("locationId", "Location does not exist.");
+            if (r.BusUnitId != location.BusUnitId)
+                throw new ValidationFailedException("locationId", "Location must belong to the selected Business Unit.");
+        }
+        if (r.ModelId.HasValue && !await db.Models.AnyAsync(model => model.ModelId == r.ModelId.Value, ct))
+            throw new ValidationFailedException("modelId", "Model does not exist.");
         var status = await db.AssetStatuses.FirstOrDefaultAsync(s => s.StatusId == r.StatusId, ct);
         if (status is null)
             throw new ValidationFailedException("statusId", "Asset status does not exist.");
@@ -143,7 +153,8 @@ public class AssetService(IAppDbContext db, IHierarchyValidator hierarchy)
         a.SerialNumber = string.IsNullOrWhiteSpace(r.SerialNumber) ? null : r.SerialNumber.Trim();
         a.AssetTag = r.AssetTag?.Trim(); a.PurchaseOrderNumber = r.PurchaseOrderNumber?.Trim(); a.SapMaterialNumber = r.SapMaterialNumber?.Trim();
         a.AssetValue = r.AssetValue; a.Description = r.Description?.Trim();
-        a.BusUnitId = r.BusUnitId; a.ConditionId = r.ConditionId; a.BusinessUnit = r.BusinessUnit?.Trim();
+        a.BusUnitId = r.BusUnitId; a.LocationId = r.LocationId; a.ModelId = r.ModelId;
+        a.ConditionId = r.ConditionId; a.BusinessUnit = r.BusinessUnit?.Trim();
     }
 
     public static AssetDto ToDto(MdAsset a) => new AssetDto(a.AssetId, a.CatId, a.Category.CatName, a.GroupId, a.Group.GroupName, a.TypeId, a.Type.TypeName,
@@ -151,6 +162,10 @@ public class AssetService(IAppDbContext db, IHierarchyValidator hierarchy)
         a.AssetTag, a.PurchaseOrderNumber, a.SapMaterialNumber, a.AssetValue, a.Description, a.BusUnitId,
         a.ConditionId, a.Condition?.ConditionName, a.BusinessUnit, a.UpdatedDt, Convert.ToBase64String(a.RowVersion))
     {
-        AssetCode = a.AssetCode
+        AssetCode = a.AssetCode,
+        LocationId = a.LocationId,
+        LocationName = a.Location?.LocationName,
+        ModelId = a.ModelId,
+        ModelName = a.Model?.ModelName
     };
 }

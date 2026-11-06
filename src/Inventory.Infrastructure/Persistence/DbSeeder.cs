@@ -14,11 +14,46 @@ public static class DbSeeder
         if (db.Database.GetMigrations().Any()) await db.Database.MigrateAsync(ct);
         else await db.Database.EnsureCreatedAsync(ct);
 
+        await RepairLegacyAuditDetailsAsync(db, ct);
         await SeedSecurityAsync(db, ct);
         await SeedLookupsAsync(db, ct);
         await SeedAdminAsync(db, hasher, cfg, ct);
         await EnsureMainAdminAsync(db, ct);
         if (cfg.GetValue<bool>("Seed:SampleData")) await SeedSampleAsync(db, ct);
+    }
+
+    private static async Task RepairLegacyAuditDetailsAsync(AppDbContext db, CancellationToken ct)
+    {
+        var sessions = await db.StockOpnames.AsNoTracking()
+            .Where(audit => !audit.Details.Any(detail => detail.AssetId == audit.AssetId))
+            .Select(audit => new { audit.StockOpnameId, audit.AssetId })
+            .ToListAsync(ct);
+        if (sessions.Count == 0) return;
+
+        var assetIds = sessions.Select(session => session.AssetId).Distinct().ToList();
+        var assets = await db.Assets.AsNoTracking()
+            .Where(asset => assetIds.Contains(asset.AssetId))
+            .ToDictionaryAsync(asset => asset.AssetId, ct);
+        var missingAssetIds = assetIds.Where(assetId => !assets.ContainsKey(assetId)).ToList();
+        if (missingAssetIds.Count > 0)
+            throw new InvalidOperationException(
+                $"Cannot restore Stock Opname details because referenced assets are missing: {string.Join(", ", missingAssetIds)}.");
+
+        db.StockOpnameDetails.AddRange(sessions.Select(session =>
+        {
+            var asset = assets[session.AssetId];
+            return new TrStockOpnameDetail
+            {
+                StockOpnameId = session.StockOpnameId,
+                AssetId = session.AssetId,
+                SystemQuantity = asset.Quantity,
+                PhysicalQuantity = asset.Quantity,
+                ActualLocationId = asset.LocationId,
+                Finding = "Unverified",
+                IsConfirmed = false
+            };
+        }));
+        await db.SaveChangesAsync(ct);
     }
 
     private static async Task SeedSecurityAsync(AppDbContext db, CancellationToken ct)
@@ -49,6 +84,20 @@ public static class DbSeeder
             db.RolePermissions.AddRange(desiredIds.Except(currentIds)
                 .Select(permissionId => new CfgRolePermission { RoleId = roleId, PermissionId = permissionId }));
         }
+        var stockOpnameMarkerId = perms[Permissions.PageMarkers["stock-opname"]].PermissionId;
+        var auditDeleteId = perms[Permissions.AuditDelete].PermissionId;
+        var memberRoleId = roles[RoleNames.Member].RoleId;
+        var stockOpnameAdmins = await db.ModelPermissions
+            .Where(x => x.PermissionId == stockOpnameMarkerId)
+            .Select(x => x.ModelId)
+            .Where(userId => !db.ModelRoles.Any(role => role.ModelId == userId && role.RoleId == memberRoleId))
+            .ToListAsync(ct);
+        var usersWithAuditDelete = await db.ModelPermissions
+            .Where(x => x.PermissionId == auditDeleteId)
+            .Select(x => x.ModelId)
+            .ToListAsync(ct);
+        db.ModelPermissions.AddRange(stockOpnameAdmins.Except(usersWithAuditDelete)
+            .Select(userId => new CfgModelPermission { ModelId = userId, PermissionId = auditDeleteId }));
         await db.SaveChangesAsync(ct);
     }
 

@@ -211,4 +211,12 @@ IF NOT EXISTS (
     CREATE INDEX IX_TR_PasswordResetRequest_Status_RequestDate
         ON dbo.TR_PasswordResetRequest(Status, RequestDate DESC);
 
+IF EXISTS (
+    SELECT 1 FROM sys.columns
+    WHERE object_id = OBJECT_ID(N'dbo.TR_Good')
+      AND name = N'DestinationLocation'
+      AND is_nullable = 0
+)
+    ALTER TABLE dbo.TR_Good ALTER COLUMN DestinationLocation nvarchar(200) NULL;
+
 COMMIT TRANSACTION;

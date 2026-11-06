@@ -60,6 +60,7 @@ public static class Permissions
     public const string AuditCreate = "audit.create";
     public const string AuditUpdate = "audit.update";
     public const string AuditApprove = "audit.approve";
+    public const string AuditDelete = "audit.delete";
     public const string DashboardRead = "dashboard.read";
     public const string ReportRead = "report.read";
     public const string SettingsRead = "settings.read";
@@ -69,7 +70,7 @@ public static class Permissions
     {
         MasterRead, MasterLookupRead, MasterCreate, MasterUpdate, MasterDelete, AssetRead, AssetCreate, AssetUpdate, AssetImport, AssetExport,
         GoodRead, GoodCreate, GoodStatus, GoodInRead, GoodInCreate, GoodInStatus, GoodOutRead, GoodOutCreate, GoodOutStatus,
-        AuditRead, AuditCreate, AuditUpdate, AuditApprove, DashboardRead, ReportRead, SettingsRead, UserManage
+        AuditRead, AuditCreate, AuditUpdate, AuditApprove, AuditDelete, DashboardRead, ReportRead, SettingsRead, UserManage
     };
 
     public static readonly string[] MemberDefaults =
@@ -88,7 +89,7 @@ public static class Permissions
             ["asset-inventory"] = new[] { MasterLookupRead, AssetRead, AssetCreate, AssetUpdate, AssetImport, AssetExport },
             ["goods-in"] = new[] { MasterLookupRead, AssetRead, GoodInRead, GoodInCreate, GoodInStatus },
             ["goods-out"] = new[] { MasterLookupRead, AssetRead, GoodOutRead, GoodOutCreate, GoodOutStatus },
-            ["stock-opname"] = new[] { MasterLookupRead, AssetRead, AuditRead, AuditCreate, AuditUpdate, AuditApprove },
+            ["stock-opname"] = new[] { MasterLookupRead, AssetRead, AuditRead, AuditCreate, AuditUpdate, AuditApprove, AuditDelete },
             ["master-data"] = new[] { MasterLookupRead, MasterRead, MasterCreate, MasterUpdate, MasterDelete },
             ["reports"] = new[] { ReportRead },
             ["dashboard"] = new[] { MasterLookupRead, AssetRead, GoodInRead, GoodOutRead, AuditRead, DashboardRead },

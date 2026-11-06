@@ -10,6 +10,10 @@ public class AuditsController(AuditService svc) : ControllerBase
     [HttpGet("{id:int}"), Authorize(Policy = Permissions.AuditRead)]
     public async Task<ActionResult<AuditDetailDto>> Get(int id, CancellationToken ct) => Ok(await svc.GetAsync(id, ct));
 
+    /// <summary>Deletes a Stock Opname session and its detail records, but never its referenced assets.</summary>
+    [HttpDelete("{id:int}"), Authorize(Policy = Permissions.AuditDelete)]
+    public async Task<IActionResult> Delete(int id, CancellationToken ct) { await svc.DeleteAsync(id, ct); return NoContent(); }
+
     [HttpPost, Authorize(Policy = Permissions.AuditCreate)]
     public async Task<ActionResult<AuditDetailDto>> Create(AuditCreateRequest r, CancellationToken ct) => StatusCode(201, await svc.CreateAsync(r, ct));
 

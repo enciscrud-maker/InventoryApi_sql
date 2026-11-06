@@ -1,3 +1,5 @@
+using System.Text.Json.Nodes;
+
 namespace Inventory.Tests;
 
 [Collection("api")]
@@ -20,6 +22,19 @@ public class AuthAndRbacTests(ApiFixture fx)
     }
 
     [Fact]
+    public async Task Assets_and_asset_reports_return_successful_pages()
+    {
+        var admin = await fx.AdminAsync();
+
+        var assets = await admin.GetAsync("/api/assets");
+        assets.StatusCode.Should().Be(HttpStatusCode.OK, await assets.Content.ReadAsStringAsync());
+
+        var report = await admin.GetAsync("/api/reports/assets");
+        report.StatusCode.Should().Be(HttpStatusCode.OK, await report.Content.ReadAsStringAsync());
+        (await J(report))["items"].Should().NotBeNull();
+    }
+
+    [Fact]
     public async Task Login_works_with_email_and_nik_and_never_returns_password()
     {
         var byEmail = await fx.Anonymous().PostAsJsonAsync("/api/auth/login", new { identifier = "admin@inventory.local", password = AdminPassword });
@@ -34,6 +49,25 @@ public class AuthAndRbacTests(ApiFixture fx)
     {
         (await fx.Anonymous().PostAsJsonAsync("/api/auth/login", new { identifier = "admin@inventory.local", password = "nope" })).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         (await fx.Anonymous().GetAsync("/api/assets")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task Error_responses_include_problem_details_and_request_context()
+    {
+        var client = fx.Anonymous();
+        var validation = await client.PostAsJsonAsync("/api/auth/login", new { identifier = "", password = "" });
+        validation.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var validationProblem = await J(validation);
+        validationProblem["errors"].Should().NotBeNull();
+        AssertRequestContext(validationProblem, "POST", "/api/auth/login");
+
+        var unauthorized = await client.GetAsync("/api/assets");
+        unauthorized.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        AssertRequestContext(await J(unauthorized), "GET", "/api/assets");
+
+        var missing = await client.GetAsync("/api/not-a-real-endpoint");
+        missing.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        AssertRequestContext(await J(missing), "GET", "/api/not-a-real-endpoint");
     }
 
     [Fact]
@@ -246,5 +280,15 @@ public class AuthAndRbacTests(ApiFixture fx)
             assetPrefix, assetCode = assetPrefix + "00001"
         });
         res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    private static void AssertRequestContext(JsonNode problem, string method, string path)
+    {
+        problem["status"]!.GetValue<int>().Should().BeGreaterThanOrEqualTo(400);
+        problem["title"]!.GetValue<string>().Should().NotBeNullOrWhiteSpace();
+        problem["path"]!.GetValue<string>().Should().Be(path);
+        problem["instance"]!.GetValue<string>().Should().Be(path);
+        problem["method"]!.GetValue<string>().Should().Be(method);
+        problem["traceId"]!.GetValue<string>().Should().NotBeNullOrWhiteSpace();
     }
 }

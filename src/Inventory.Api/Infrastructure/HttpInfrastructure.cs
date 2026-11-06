@@ -4,12 +4,59 @@ using Inventory.Application.Abstractions;
 using Inventory.Application.Common;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Data.SqlClient;
 using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace Inventory.Api.Infrastructure;
+
+public static class ApiErrorResponse
+{
+    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+
+    public static ProblemDetails Create(HttpContext context, int status, string title, string detail)
+    {
+        var problem = new ProblemDetails
+        {
+            Status = status,
+            Title = title,
+            Detail = detail,
+            Instance = context.Request.Path
+        };
+        AddRequestContext(problem, context);
+        return problem;
+    }
+
+    public static ValidationProblemDetails CreateValidation(HttpContext context, IDictionary<string, string[]> errors)
+    {
+        var problem = new ValidationProblemDetails(errors)
+        {
+            Status = StatusCodes.Status400BadRequest,
+            Title = "One or more validation errors occurred.",
+            Instance = context.Request.Path
+        };
+        AddRequestContext(problem, context);
+        return problem;
+    }
+
+    public static async Task WriteAsync(HttpContext context, ProblemDetails problem)
+    {
+        if (context.Response.HasStarted) return;
+        context.Response.Clear();
+        context.Response.StatusCode = problem.Status ?? StatusCodes.Status500InternalServerError;
+        context.Response.ContentType = "application/problem+json";
+        await context.Response.WriteAsync(JsonSerializer.Serialize(problem, problem.GetType(), Json));
+    }
+
+    private static void AddRequestContext(ProblemDetails problem, HttpContext context)
+    {
+        problem.Extensions["path"] = context.Request.Path.Value;
+        problem.Extensions["method"] = context.Request.Method;
+        problem.Extensions["traceId"] = context.TraceIdentifier;
+    }
+}
 
 public class CurrentUser(IHttpContextAccessor accessor) : ICurrentUser
 {
@@ -37,8 +84,8 @@ public class ValidationFilter(IServiceProvider sp) : IAsyncActionFilter
         }
         if (errors.Count > 0)
         {
-            var problem = new ValidationProblemDetails(errors.ToDictionary(k => k.Key, v => v.Value.ToArray()))
-            { Status = 400, Title = "One or more validation errors occurred.", Instance = context.HttpContext.Request.Path };
+            var problem = ApiErrorResponse.CreateValidation(context.HttpContext,
+                errors.ToDictionary(k => k.Key, v => v.Value.ToArray()));
             context.Result = new ObjectResult(problem) { StatusCode = 400, ContentTypes = { "application/problem+json" } };
             return;
         }
@@ -48,41 +95,40 @@ public class ValidationFilter(IServiceProvider sp) : IAsyncActionFilter
 
 public class ExceptionMiddleware(RequestDelegate next, ILogger<ExceptionMiddleware> log, IHostEnvironment env)
 {
-    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
-
     public async Task InvokeAsync(HttpContext ctx)
     {
         try { await next(ctx); }
         catch (OperationCanceledException) when (ctx.RequestAborted.IsCancellationRequested) { ctx.Response.StatusCode = 499; }
-        catch (AppException ex) { await Write(ctx, ex.Status, ex.Title, ex.Message, ex.Errors); }
+        catch (AppException ex)
+        {
+            var problem = ex.Errors is { Count: > 0 }
+                ? ApiErrorResponse.CreateValidation(ctx, ex.Errors)
+                : ApiErrorResponse.Create(ctx, ex.Status, ex.Title, ex.Message);
+            if (ex.Errors is { Count: > 0 }) problem.Title = ex.Title;
+            await ApiErrorResponse.WriteAsync(ctx, problem);
+        }
         catch (DbUpdateConcurrencyException)
         {
-            await Write(ctx, 409, "Conflict", "The record was modified by another request (concurrency conflict). Reload the data and retry.", null);
+            await ApiErrorResponse.WriteAsync(ctx, ApiErrorResponse.Create(ctx, 409, "Conflict",
+                "The record was modified by another request (concurrency conflict). Reload the data and retry."));
         }
         catch (DbUpdateException ex) when (ex.InnerException is SqlException { Number: 2601 or 2627 })
         {
-            await Write(ctx, 409, "Conflict", "A record with the same unique value already exists.", null);
+            await ApiErrorResponse.WriteAsync(ctx, ApiErrorResponse.Create(ctx, 409, "Conflict",
+                "A record with the same unique value already exists."));
         }
         catch (DbUpdateException ex) when (ex.InnerException is SqlException { Number: 547 })
         {
-            await Write(ctx, 409, "Conflict", "The operation violates a reference constraint (the record is referenced or a referenced record does not exist).", null);
+            await ApiErrorResponse.WriteAsync(ctx, ApiErrorResponse.Create(ctx, 409, "Conflict",
+                "The operation violates a reference constraint (the record is referenced or a referenced record does not exist)."));
         }
         catch (Exception ex)
         {
-            log.LogError(ex, "Unhandled exception for {Method} {Path}", ctx.Request.Method, ctx.Request.Path);
-            await Write(ctx, 500, "Internal Server Error", env.IsDevelopment() ? ex.ToString() : "An unexpected error occurred.", null);
+            log.LogError(ex, "Unhandled exception for {Method} {Path}. TraceId: {TraceId}",
+                ctx.Request.Method, ctx.Request.Path, ctx.TraceIdentifier);
+            await ApiErrorResponse.WriteAsync(ctx, ApiErrorResponse.Create(ctx, 500, "Internal Server Error",
+                env.IsDevelopment() ? ex.ToString() : "An unexpected error occurred. Check the server logs using the traceId."));
         }
-    }
-
-    private static async Task Write(HttpContext ctx, int status, string title, string detail, IDictionary<string, string[]>? errors)
-    {
-        if (ctx.Response.HasStarted) return;
-        ctx.Response.Clear();
-        ctx.Response.StatusCode = status;
-        ctx.Response.ContentType = "application/problem+json";
-        ProblemDetails p = errors is { Count: > 0 } ? new ValidationProblemDetails(errors) : new ProblemDetails();
-        p.Status = status; p.Title = title; p.Detail = detail; p.Instance = ctx.Request.Path;
-        await ctx.Response.WriteAsync(JsonSerializer.Serialize(p, p.GetType(), Json));
     }
 }
 

@@ -16,6 +16,7 @@ tests/Inventory.Tests       integration test (xUnit + Testcontainers SQL Server,
 docker compose up -d                       # SQL Server dev
 cd src/Inventory.Api
 dotnet run                                 # Development: seed sample + admin
+# Konfigurasi lokal memakai SQL Compose di localhost:1434, database InventoryApiDocker.
 # Swagger: https://localhost:<port>/swagger
 # Login admin (Development): admin@inventory.local / NIK 0000000001, password Admin#12345
 ```
@@ -30,7 +31,7 @@ dotnet ef database update -p src/Inventory.Infrastructure -s src/Inventory.Api
 Setelah ada migration, startup otomatis memanggil `Migrate()`.
 Perubahan skema tidak diterapkan ke database lama oleh `EnsureCreated`; buat dan jalankan migration sebelum memakai database yang sudah ada.
 
-Jika API lama mengembalikan 500 karena kolom aset/lokasi atau tabel reset password tidak ditemukan, jalankan `src/Inventory.Infrastructure/Persistence/UpgradeApiSchema.sql` satu kali terhadap database yang dipakai API sebelum menjalankan versi aplikasi ini. Script memeriksa pemetaan dan duplikasi sebelum membuat index; script berhenti dengan error yang jelas jika data lama perlu dipetakan manual.
+Jika API lama mengembalikan 500 karena skema database tertinggal, hentikan API dan jalankan `src/Inventory.Infrastructure/Persistence/UpgradeApiSchema.sql` terhadap database yang dipakai API sebelum menjalankan versi aplikasi ini. Script ini idempotent, meng-upgrade kolom aset/lokasi dan tabel reset password, serta membuat kolom legacy `TR_Good.DestinationLocation` nullable agar tidak menggagalkan pembuatan transaksi yang tidak lagi memakai kolom tersebut. Script memeriksa pemetaan dan duplikasi sebelum membuat index; script berhenti dengan error yang jelas jika data lama perlu dipetakan manual.
 
 Untuk menambahkan antrean permintaan reset password ke database yang sudah berjalan, jalankan `src/Inventory.Infrastructure/Persistence/UpgradePasswordResetRequests.sql` satu kali pada database Inventory API sebelum memperbarui aplikasi. Script ini idempotent, membuat tabel/relasi/index yang diperlukan, dan mengizinkan permohonan yang datanya belum cocok dengan akun tersimpan agar tetap dapat ditinjau owner (permohonan tersebut hanya dapat ditolak, bukan disetujui untuk mengganti password).
 
@@ -69,3 +70,6 @@ Cakupan: login/refresh, RBAC (401/403), validasi hierarki, import CSV/XLSX, stok
 `POST /api/auth/password-reset` records the submitted details and returns `requestId` plus `gmailComposeUrl`; the frontend should navigate to that URL after receiving the response. The email is a prefilled Gmail draft and still needs to be sent by the user. Owners review or reject requests through `/api/password-reset-requests`.
 
 Semua ada di Swagger (enum dan TransactionType didokumentasikan). Ringkas: `/api/auth/*` (termasuk `POST /api/auth/password-reset` untuk mengirim permintaan reset tanpa autentikasi), `/api/password-reset-requests` (Admin: daftar, set password atau tolak), `/api/employees`, `/api/users` (termasuk `GET` dan `POST /api/users/{id}/permissions` untuk permission efektif per user), `/api/roles`, `/api/permissions`, `/api/assets` (+ `bulk-business-unit`, `import`, `export`, `import-template`), master (`/api/categories`, `asset-groups`, `asset-types`, `brands`, `asset-models`, `business-units`, `locations`, `asset-statuses`, `asset-conditions`), `/api/goods-in`, `/api/goods-out`, `/api/stock-audits`, `/api/dashboard/summary`, `/api/reports/*`.
+
+### Error response
+Semua error API memakai `application/problem+json` dan menyertakan `status`, `title`, `detail`, `instance`, `path`, `method`, dan `traceId`. Error validasi menyertakan `errors` per field. Gunakan `traceId` untuk mencocokkan error 500 dengan log server; detail exception dan stack trace hanya dikirim saat environment `Development`.

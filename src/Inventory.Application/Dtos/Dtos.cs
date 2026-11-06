@@ -125,12 +125,15 @@ public class GoodQuery : PageQuery
 }
 
 // ---------- Stock audit ----------
-public record AuditCreateRequest(string StockOpnameName, StockOpnameType StockOpnameType, int AssetId, DateTime AuditDate, string? BusinessUnit, int? BusUnitId, string? StockOpnameStatus);
+public record AuditCreateRequest(string StockOpnameName, StockOpnameType StockOpnameType, int AssetId, DateTime AuditDate, string? BusinessUnit, int? BusUnitId, string? StockOpnameStatus)
+{
+    public List<int>? AssetIds { get; init; }
+}
 public record AuditUpdateRequest(string StockOpnameName, DateTime AuditDate, string? BusinessUnit, int? BusUnitId, string StockOpnameStatus);
-public record AuditItemRequest(int? StockOpnameDetailId, int AssetId, int PhysicalQuantity, int? ActualLocationId, string? Finding, bool IsConfirmed, string? Notes);
+public record AuditItemRequest(int? StockOpnameDetailId, int AssetId, int? PhysicalQuantity, int? ActualLocationId, string? Finding, bool IsConfirmed, string? Notes);
 public record AuditItemsRequest(List<AuditItemRequest> Items);
 public record AuditCompleteRequest(bool UpdateLocation);
-public record AuditItemDto(int StockOpnameDetailId, int AssetId, string AssetName, string AssetPrefix, int SystemQuantity, int PhysicalQuantity, int Variance,
+public record AuditItemDto(int StockOpnameDetailId, int AssetId, string AssetName, string AssetPrefix, int SystemQuantity, int? PhysicalQuantity, int? Variance,
     int? ActualLocationId, string? Finding, bool IsConfirmed, string? Notes, string? EvidencePath)
 {
     public string AssetCode { get; init; } = AssetPrefix;

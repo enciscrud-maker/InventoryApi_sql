@@ -59,7 +59,21 @@ builder.Services.AddScoped<ReportService>();
 
 // ---------- MVC / JSON ----------
 builder.Services.AddControllers(o => o.Filters.Add<ValidationFilter>())
-    .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+    .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()))
+    .ConfigureApiBehaviorOptions(o => o.InvalidModelStateResponseFactory = context =>
+    {
+        var errors = context.ModelState
+            .Where(entry => entry.Value?.Errors.Count > 0)
+            .ToDictionary(
+                entry => entry.Key,
+                entry => entry.Value!.Errors
+                    .Select(error => string.IsNullOrWhiteSpace(error.ErrorMessage)
+                        ? "The supplied value is invalid."
+                        : error.ErrorMessage)
+                    .ToArray());
+        var problem = ApiErrorResponse.CreateValidation(context.HttpContext, errors);
+        return new BadRequestObjectResult(problem) { ContentTypes = { "application/problem+json" } };
+    });
 builder.Services.AddProblemDetails();
 
 // ---------- authentication / authorization (permissions come from CFG_* tables -> JWT claims) ----------
@@ -137,7 +151,16 @@ builder.Services.AddSwaggerGen(c =>
 var app = builder.Build();
 
 app.UseMiddleware<ExceptionMiddleware>();
-app.UseStatusCodePages();
+app.UseStatusCodePages(async context =>
+{
+    var httpContext = context.HttpContext;
+    var status = httpContext.Response.StatusCode;
+    if (status == 499) return;
+    var title = Microsoft.AspNetCore.WebUtilities.ReasonPhrases.GetReasonPhrase(status);
+    if (string.IsNullOrEmpty(title)) title = "HTTP Error";
+    await ApiErrorResponse.WriteAsync(httpContext,
+        ApiErrorResponse.Create(httpContext, status, title, $"The request returned HTTP {status}."));
+});
 if (cfg.GetValue<bool>("Swagger:Enabled") || app.Environment.IsDevelopment())
 {
     app.UseSwagger();
