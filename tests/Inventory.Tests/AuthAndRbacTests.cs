@@ -4,6 +4,22 @@ namespace Inventory.Tests;
 public class AuthAndRbacTests(ApiFixture fx)
 {
     [Fact]
+    public async Task Dashboard_summary_returns_category_aggregates()
+    {
+        var admin = await fx.AdminAsync();
+
+        var response = await admin.GetAsync("/api/dashboard/summary");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        var summary = await J(response);
+        summary["totalAssets"]!.GetValue<int>().Should().BeGreaterThan(0);
+        summary["assetsByCategory"]!.AsArray().Should().NotBeEmpty();
+        summary["assetsByCategory"]!.AsArray()
+            .Select(item => item!["category"]!.GetValue<string>())
+            .Should().BeInAscendingOrder();
+    }
+
+    [Fact]
     public async Task Login_works_with_email_and_nik_and_never_returns_password()
     {
         var byEmail = await fx.Anonymous().PostAsJsonAsync("/api/auth/login", new { identifier = "admin@inventory.local", password = AdminPassword });
@@ -202,8 +218,8 @@ public class AuthAndRbacTests(ApiFixture fx)
         var secondLocationDto = await J(secondLocation);
         firstLocationDto["busUnitId"]!.GetValue<int>().Should().Be(busUnitId);
         secondLocationDto["busUnitId"]!.GetValue<int>().Should().Be(busUnitId);
-        firstLocationDto["locationCode"]!.GetValue<string>().Should().StartWith("LOC-");
-        secondLocationDto["locationCode"]!.GetValue<string>().Should().StartWith("LOC-")
+        firstLocationDto["locationCode"]!.GetValue<string>().Should().StartWith($"LOC-{code}-");
+        secondLocationDto["locationCode"]!.GetValue<string>().Should().StartWith($"LOC-{code}-")
             .And.NotBe(firstLocationDto["locationCode"]!.GetValue<string>());
         firstLocationDto["isActive"]!.GetValue<bool>().Should().BeTrue();
 
@@ -223,9 +239,11 @@ public class AuthAndRbacTests(ApiFixture fx)
         var otherCat = await J(await admin.PostAsJsonAsync("/api/categories", new { catName = "Other", catCode = "O" + Guid.NewGuid().ToString("N")[..8], catPrefix = "OT" }));
         var statuses = await J(await admin.GetAsync("/api/asset-statuses?search=Active"));
         var statusId = statuses["items"]![0]!["statusId"]!.GetValue<int>();
+        var assetPrefix = "H-" + Guid.NewGuid().ToString("N")[..8];
         var res = await admin.PostAsJsonAsync("/api/assets", new
         {
-            catId = otherCat["catId"]!.GetValue<int>(), groupId = h.Group, typeId = h.Type, brandId = h.Brand, assetName = "x", assetType = "In", statusId, assetPrefix = "H-" + Guid.NewGuid().ToString("N")[..8]
+            catId = otherCat["catId"]!.GetValue<int>(), groupId = h.Group, typeId = h.Type, brandId = h.Brand, assetName = "x", assetType = "In", statusId,
+            assetPrefix, assetCode = assetPrefix + "00001"
         });
         res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }

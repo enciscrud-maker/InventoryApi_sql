@@ -23,6 +23,7 @@ public class MdAssetConfiguration : IEntityTypeConfiguration<MdAsset>
         b.Property(x => x.StatusId).HasColumnName("StatusId");
         b.Property(x => x.AssetStatus).HasColumnName("AssetStatus").HasMaxLength(50).IsRequired();
         b.Property(x => x.AssetPrefix).HasColumnName("AssetPrefix").HasMaxLength(50).IsRequired();
+        b.Property(x => x.AssetCode).HasColumnName("AssetCode").HasMaxLength(100).IsRequired();
         b.Property(x => x.CreatedDt).HasColumnName("CreatedDt");
         b.Property(x => x.Quantity).HasColumnName("Quantity");
         b.Property(x => x.UnitOfMeasure).HasColumnName("UnitOfMeasure").HasMaxLength(30);
@@ -52,7 +53,8 @@ public class MdAssetConfiguration : IEntityTypeConfiguration<MdAsset>
             .HasForeignKey(x => x.StatusId)
             .IsRequired()
             .OnDelete(DeleteBehavior.Restrict);
-        b.HasIndex(x => x.AssetPrefix).IsUnique();
+        b.HasIndex(x => x.AssetPrefix);
+        b.HasIndex(x => x.AssetCode).IsUnique();
         b.HasIndex(x => x.SerialNumber).IsUnique().HasFilter("[SerialNumber] IS NOT NULL");
         b.HasIndex(x => x.AssetTag).IsUnique().HasFilter("[AssetTag] IS NOT NULL AND [AssetTag] <> N''");
         b.HasIndex(x => x.SapMaterialNumber).IsUnique().HasFilter("[SapMaterialNumber] IS NOT NULL AND [SapMaterialNumber] <> N''");

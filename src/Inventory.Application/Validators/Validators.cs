@@ -161,6 +161,7 @@ public class AssetRequestValidator : AbstractValidator<AssetRequest>
         RuleFor(x => x.AssetType).IsInEnum();
         RuleFor(x => x.StatusId).GreaterThan(0);
         RuleFor(x => x.AssetPrefix).NotEmpty().MaximumLength(50);
+        RuleFor(x => x.AssetCode).NotEmpty().MaximumLength(100);
         RuleFor(x => x.Quantity).GreaterThanOrEqualTo(0).When(x => x.Quantity.HasValue);
         RuleFor(x => x.UnitOfMeasure).MaximumLength(30);
         RuleFor(x => x.SerialNumber).MaximumLength(100);

@@ -224,7 +224,10 @@ public class AuditService(IAppDbContext db, ICurrentUser current, IFileStorage s
 
     private static AuditItemDto ToItem(TrStockOpnameDetail d) => new(d.StockOpnameDetailId, d.AssetId, d.Asset.AssetName, d.Asset.AssetPrefix, d.SystemQuantity, d.PhysicalQuantity,
         d.PhysicalQuantity - d.SystemQuantity, d.ActualLocationId, d.Finding, d.IsConfirmed, d.Notes,
-        string.IsNullOrWhiteSpace(d.EvidencePath) ? null : $"/api/stock-audits/{d.StockOpnameId}/items/{d.StockOpnameDetailId}/evidence/1");
+        string.IsNullOrWhiteSpace(d.EvidencePath) ? null : $"/api/stock-audits/{d.StockOpnameId}/items/{d.StockOpnameDetailId}/evidence/1")
+    {
+        AssetCode = d.Asset.AssetCode
+    };
 
     private static AuditDetailDto ToDto(TrStockOpname a) => new(a.StockOpnameId, a.StockOpnameNumber, a.StockOpnameName, a.AuditDate, a.StockOpnameType, a.StockOpnameStatus,
         a.StockOpnamePrefix, a.AssetId, a.UserId, a.BusinessUnit, a.BusUnitId, a.CreatedDt, a.UpdatedDt, a.Details.OrderBy(d => d.StockOpnameDetailId).Select(ToItem).ToList());

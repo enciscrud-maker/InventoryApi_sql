@@ -30,7 +30,11 @@ dotnet ef database update -p src/Inventory.Infrastructure -s src/Inventory.Api
 Setelah ada migration, startup otomatis memanggil `Migrate()`.
 Perubahan skema tidak diterapkan ke database lama oleh `EnsureCreated`; buat dan jalankan migration sebelum memakai database yang sudah ada.
 
-Untuk menambahkan antrean permintaan reset password ke database yang sudah berjalan, jalankan `src/Inventory.Infrastructure/Persistence/UpgradePasswordResetRequests.sql` satu kali pada database Inventory API sebelum memperbarui aplikasi. Script ini idempotent dan hanya membuat tabel, relasi, serta index baru.
+Jika API lama mengembalikan 500 karena kolom aset/lokasi atau tabel reset password tidak ditemukan, jalankan `src/Inventory.Infrastructure/Persistence/UpgradeApiSchema.sql` satu kali terhadap database yang dipakai API sebelum menjalankan versi aplikasi ini. Script memeriksa pemetaan dan duplikasi sebelum membuat index; script berhenti dengan error yang jelas jika data lama perlu dipetakan manual.
+
+Untuk menambahkan antrean permintaan reset password ke database yang sudah berjalan, jalankan `src/Inventory.Infrastructure/Persistence/UpgradePasswordResetRequests.sql` satu kali pada database Inventory API sebelum memperbarui aplikasi. Script ini idempotent, membuat tabel/relasi/index yang diperlukan, dan mengizinkan permohonan yang datanya belum cocok dengan akun tersimpan agar tetap dapat ditinjau owner (permohonan tersebut hanya dapat ditolak, bukan disetujui untuk mengganti password).
+
+Untuk menambahkan `AssetCode` pada database yang sudah berjalan, jalankan `src/Inventory.Infrastructure/Persistence/UpgradeAssetCode.sql` sebelum memperbarui aplikasi. Data lama diinisialisasi dengan `AssetCode = AssetPrefix`; aset baru harus mengirim `AssetPrefix` dan `AssetCode` secara terpisah, dan `AssetCode` harus unik serta diawali `AssetPrefix`.
 
 Untuk database legacy sebelum pemisahan master business unit/status aset, hentikan API, buat dan verifikasi backup database, lalu jalankan `src/Inventory.Infrastructure/Persistence/UpgradeLegacySchema.sql` terhadap database API yang sama. Script ini bersifat transaksional dan akan berhenti tanpa perubahan jika tabel aset, lokasi, goods, atau stock opname sudah berisi data legacy yang perlu dipetakan manual. Kolom/tabel lama yang tidak lagi dipakai tetap dipertahankan. Script ini juga menambahkan `ActualLocationId` untuk lokasi aktual tiap item stock opname dan kolom `MD_User.IsMainAdmin` secara aditif.
 
@@ -40,6 +44,7 @@ Saat startup, akun dengan NIK `0000000001` ditetapkan sebagai satu-satunya Main 
 - `Jwt__Key` (>= 32 karakter, WAJIB diganti), `ConnectionStrings__DefaultConnection`.
 - Docker Compose memakai database `InventoryApiDocker` secara default (`DATABASE_NAME` untuk mengubahnya), agar tidak memakai database lama dengan skema yang tidak cocok.
 - `Seed__AdminPassword` mengisi admin awal; kosong = admin tidak dibuat. `Seed__SampleData=false`.
+- `PasswordReset__OwnerEmail` adalah alamat owner yang dituju tautan Gmail compose; jika kosong, API memakai `Seed__AdminEmail`.
 - `Cors:Origins` untuk domain frontend Next.js, `Storage:RootPath` untuk lampiran.
 
 ## Test
@@ -61,4 +66,6 @@ Cakupan: login/refresh, RBAC (401/403), validasi hierarki, import CSV/XLSX, stok
 12. Kolom `CFG_ModelRole.model_id` memakai snake_case persis seperti ERD, sedangkan `CFG_ModelPermission.ModelId` PascalCase.
 
 ## Endpoint
+`POST /api/auth/password-reset` records the submitted details and returns `requestId` plus `gmailComposeUrl`; the frontend should navigate to that URL after receiving the response. The email is a prefilled Gmail draft and still needs to be sent by the user. Owners review or reject requests through `/api/password-reset-requests`.
+
 Semua ada di Swagger (enum dan TransactionType didokumentasikan). Ringkas: `/api/auth/*` (termasuk `POST /api/auth/password-reset` untuk mengirim permintaan reset tanpa autentikasi), `/api/password-reset-requests` (Admin: daftar, set password atau tolak), `/api/employees`, `/api/users` (termasuk `GET` dan `POST /api/users/{id}/permissions` untuk permission efektif per user), `/api/roles`, `/api/permissions`, `/api/assets` (+ `bulk-business-unit`, `import`, `export`, `import-template`), master (`/api/categories`, `asset-groups`, `asset-types`, `brands`, `asset-models`, `business-units`, `locations`, `asset-statuses`, `asset-conditions`), `/api/goods-in`, `/api/goods-out`, `/api/stock-audits`, `/api/dashboard/summary`, `/api/reports/*`.

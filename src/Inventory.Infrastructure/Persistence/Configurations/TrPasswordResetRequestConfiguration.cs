@@ -12,7 +12,7 @@ public class TrPasswordResetRequestConfiguration : IEntityTypeConfiguration<TrPa
         b.HasKey(x => x.PasswordResetRequestId);
         b.Property(x => x.PasswordResetRequestId).HasColumnName("PasswordResetRequestId").ValueGeneratedOnAdd();
         b.Property(x => x.RequestId).HasColumnName("RequestId").HasMaxLength(40).IsRequired();
-        b.Property(x => x.UserId).HasColumnName("UserId");
+        b.Property(x => x.UserId).HasColumnName("UserId").IsRequired(false);
         b.Property(x => x.MemberName).HasColumnName("MemberName").HasMaxLength(200).IsRequired();
         b.Property(x => x.Nik).HasColumnName("Nik").HasMaxLength(50).IsRequired();
         b.Property(x => x.Email).HasColumnName("Email").HasMaxLength(200).IsRequired();

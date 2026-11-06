@@ -8,13 +8,13 @@ public class AssetImportService(IAppDbContext db)
     public const int MaxRows = 5000;
     private static readonly string[] TemplateHeaders =
     {
-        "category_id", "brand_id", "group_id", "type_id", "asset_name", "asset_type", "asset_status", "asset_prefix",
+        "category_id", "brand_id", "group_id", "type_id", "asset_name", "asset_type", "asset_status", "asset_prefix", "asset_code",
         "category_code", "group_code", "type_code", "brand_code"
     };
 
     public byte[] BuildTemplate() => ExcelHelper.Build("Assets", TemplateHeaders, new[]
     {
-        new object?[] { null, null, null, null, "Lenovo ThinkPad T14", "In", "Active", "LPT-1001", "ELC", "CMP", "LPT", "LNV" }
+        new object?[] { null, null, null, null, "Lenovo ThinkPad T14", "In", "Active", "QCVASDW", "QCVASDW00001", "ELC", "CMP", "LPT", "LNV" }
     });
 
     public async Task<ImportResult> ImportAsync(Stream content, string fileName, CancellationToken ct)
@@ -39,12 +39,12 @@ public class AssetImportService(IAppDbContext db)
         var typById = types.ToDictionary(x => x.TypeId); var typByCode = types.ToDictionary(x => x.TypeCode, StringComparer.OrdinalIgnoreCase);
         var brdById = brands.ToDictionary(x => x.BrandId); var brdByCode = brands.ToDictionary(x => x.BrandCode, StringComparer.OrdinalIgnoreCase);
 
-        var prefixes = rows.Select(r => Get(r.Cells, "asset_prefix")).Where(p => p.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        var existing = new HashSet<string>(
-            await db.Assets.AsNoTracking().Where(a => prefixes.Contains(a.AssetPrefix)).Select(a => a.AssetPrefix).ToListAsync(ct),
+        var codes = rows.Select(r => Get(r.Cells, "asset_code")).Where(c => c.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var existingCodes = new HashSet<string>(
+            await db.Assets.AsNoTracking().Where(a => codes.Contains(a.AssetCode)).Select(a => a.AssetCode).ToListAsync(ct),
             StringComparer.OrdinalIgnoreCase);
 
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seenCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var valid = new List<MdAsset>();
         var errors = new List<ImportError>();
         var now = DateTime.UtcNow;
@@ -77,10 +77,15 @@ public class AssetImportService(IAppDbContext db)
             var prefix = Get(c, "asset_prefix");
             if (prefix.Length == 0) errs.Add("asset_prefix is required.");
             else if (prefix.Length > 50) errs.Add("asset_prefix exceeds 50 characters.");
+            var assetCode = Get(c, "asset_code");
+            if (assetCode.Length == 0) errs.Add("asset_code is required.");
+            else if (assetCode.Length > 100) errs.Add("asset_code exceeds 100 characters.");
+            else if (prefix.Length > 0 && !assetCode.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                errs.Add("asset_code must start with asset_prefix.");
             else
             {
-                if (existing.Contains(prefix)) errs.Add($"asset_prefix '{prefix}' already exists in the database.");
-                if (!seen.Add(prefix)) errs.Add($"asset_prefix '{prefix}' is duplicated within the file.");
+                if (existingCodes.Contains(assetCode)) errs.Add($"asset_code '{assetCode}' already exists in the database.");
+                if (!seenCodes.Add(assetCode)) errs.Add($"asset_code '{assetCode}' is duplicated within the file.");
             }
 
             if (errs.Count > 0) { errors.Add(new ImportError(rowNumber, errs)); continue; }
@@ -88,7 +93,7 @@ public class AssetImportService(IAppDbContext db)
             valid.Add(new MdAsset
             {
                 CatId = cat!.CatId, GroupId = grp!.GroupId, TypeId = typ!.TypeId, BrandId = brd!.BrandId,
-                AssetName = name, AssetType = type, StatusId = status!.StatusId, AssetStatus = status.StatusName, AssetPrefix = prefix,
+                AssetName = name, AssetType = type, StatusId = status!.StatusId, AssetStatus = status.StatusName, AssetPrefix = prefix, AssetCode = assetCode,
                 Quantity = 0, CreatedDt = now // never trust quantity / audit fields from the file
             });
         }
@@ -172,7 +177,7 @@ public class AssetImportService(IAppDbContext db)
 
     private static void EnsureHeaders(List<string> headers)
     {
-        var required = new[] { "asset_name", "asset_type", "asset_status", "asset_prefix" };
+        var required = new[] { "asset_name", "asset_type", "asset_status", "asset_prefix", "asset_code" };
         var missing = required.Where(h => !headers.Contains(h)).ToList();
         if (missing.Count > 0) throw new BadRequestException($"Missing required column(s): {string.Join(", ", missing)}.");
     }

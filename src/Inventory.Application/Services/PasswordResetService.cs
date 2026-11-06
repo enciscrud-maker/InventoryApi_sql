@@ -5,14 +5,16 @@ namespace Inventory.Application.Services;
 public class PasswordResetService(IAppDbContext db, IPasswordHasher hasher, ICurrentUser current)
 {
     private const string SubmissionMessage =
-        "If the submitted details match an active Member account, the request has been recorded for Admin review.";
+        "The request was recorded for review. Password changes require verification by an Admin.";
 
     public async Task<PasswordResetSubmissionDto> SubmitAsync(
         PasswordResetSubmissionRequest request,
         CancellationToken ct)
     {
+        var name = request.Name.Trim();
         var nik = request.Nik.Trim();
         var email = request.Email.Trim();
+        var phone = request.Phone.Trim();
         var account = await db.Users.AsNoTracking()
             .Include(user => user.Employee)
             .FirstOrDefaultAsync(
@@ -21,36 +23,41 @@ public class PasswordResetService(IAppDbContext db, IPasswordHasher hasher, ICur
                         user.EmployeeEmail == email,
                 ct);
 
-        if (account is not null &&
-            Same(account.EmployeeName, request.Name) &&
-            Same(account.Employee.EmployeePhone, request.Phone) &&
-            await HasMemberRoleAsync(account.UserId, ct))
-        {
-            await using var transaction = await db.Database.BeginTransactionAsync(
-                IsolationLevel.Serializable, ct);
-            var hasPendingRequest = await db.PasswordResetRequests.AnyAsync(
-                item => item.UserId == account.UserId &&
-                        item.Status == PasswordResetRequestStatus.Pending,
-                ct);
-            if (!hasPendingRequest)
-            {
-                db.PasswordResetRequests.Add(new TrPasswordResetRequest
-                {
-                    RequestId = $"PRR-{Guid.NewGuid():N}",
-                    UserId = account.UserId,
-                    MemberName = account.EmployeeName,
-                    Nik = account.Employee.EmployeeNik,
-                    Email = account.EmployeeEmail,
-                    Phone = account.Employee.EmployeePhone!,
-                    RequestDate = DateTime.UtcNow,
-                    Status = PasswordResetRequestStatus.Pending
-                });
-                await db.SaveChangesAsync(ct);
-            }
-            await transaction.CommitAsync(ct);
-        }
+        var matchingMember = account is not null &&
+                             Same(account.EmployeeName, name) &&
+                             Same(account.Employee.EmployeePhone, phone) &&
+                             await HasMemberRoleAsync(account.UserId, ct);
+        await using var transaction = matchingMember
+            ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct)
+            : null;
 
-        return new PasswordResetSubmissionDto(SubmissionMessage);
+        var pendingRequest = matchingMember
+            ? await db.PasswordResetRequests.FirstOrDefaultAsync(
+                item => item.UserId == account!.UserId &&
+                        item.Status == PasswordResetRequestStatus.Pending,
+                ct)
+            : null;
+
+        var requestId = pendingRequest?.RequestId ?? $"PRR-{Guid.NewGuid():N}";
+        if (pendingRequest is null)
+        {
+            db.PasswordResetRequests.Add(new TrPasswordResetRequest
+            {
+                RequestId = requestId,
+                UserId = matchingMember ? account!.UserId : null,
+                MemberName = name,
+                Nik = nik,
+                Email = email,
+                Phone = phone,
+                RequestDate = DateTime.UtcNow,
+                Status = PasswordResetRequestStatus.Pending
+            });
+            await db.SaveChangesAsync(ct);
+        }
+        if (transaction is not null)
+            await transaction.CommitAsync(ct);
+
+        return new PasswordResetSubmissionDto(SubmissionMessage, requestId);
     }
 
     public async Task<PasswordResetRequestsDto> ListAsync(CancellationToken ct)
@@ -81,7 +88,9 @@ public class PasswordResetService(IAppDbContext db, IPasswordHasher hasher, ICur
 
         if (request.Action == "process")
         {
-            if (!resetRequest.User.IsActive || !await HasMemberRoleAsync(resetRequest.UserId, ct))
+            if (resetRequest.User is null ||
+                !resetRequest.User.IsActive ||
+                !await HasMemberRoleAsync(resetRequest.UserId!.Value, ct))
                 throw new ConflictException("Only an active Member account can be reset through this request.");
             if (string.IsNullOrWhiteSpace(request.NewPassword) ||
                 request.NewPassword.Length < 8 ||

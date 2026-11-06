@@ -14,7 +14,8 @@ public class DashboardService(IAppDbContext db)
         var qIn = await db.GoodDetails.Where(d => d.Good.GoodType == GoodType.In && d.Good.CreatedDt >= since).SumAsync(d => (int?)d.Quantity, ct) ?? 0;
         var qOut = await db.GoodDetails.Where(d => d.Good.GoodType == GoodType.Out && d.Good.CreatedDt >= since).SumAsync(d => (int?)d.Quantity, ct) ?? 0;
         var openAudits = await db.StockOpnames.CountAsync(s => s.StockOpnameStatus != StockOpnameStatuses.Completed, ct);
-        var byCat = await db.Assets.GroupBy(a => a.Category.CatName).Select(g => new CategorySummaryDto(g.Key, g.Count(), g.Sum(a => a.Quantity))).OrderBy(c => c.Category).ToListAsync(ct);
+        var byCat = await db.Assets.GroupBy(a => a.Category.CatName).OrderBy(g => g.Key)
+            .Select(g => new CategorySummaryDto(g.Key, g.Count(), g.Sum(a => a.Quantity))).ToListAsync(ct);
         var recent = await db.Goods.AsNoTracking().OrderByDescending(g => g.CreatedDt).Take(5).Select(GoodService.ListProjection).ToListAsync(ct);
         return new DashboardSummaryDto(totalAssets, totalQty, outOfStock, inProgress, in30, out30, qIn, qOut, openAudits, byCat, recent);
     }

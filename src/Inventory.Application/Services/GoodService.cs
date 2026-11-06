@@ -178,7 +178,10 @@ public class GoodService(IAppDbContext db, ICurrentUser current, IFileStorage st
         g.RequestDate, g.FormIssueDate, g.PersonName, g.PersonNik, g.PersonDepartment, g.DestinationBusinessUnit, g.RequestNumber, g.ApproverName,
         g.InventoryNotes, g.InventoryAdjustmentApplied, g.InventoryAdjustedAt, g.UserId, g.Details.Sum(d => d.Quantity),
         g.Details.OrderBy(d => d.GoodDetailId).Select(d => new GoodItemDto(d.GoodDetailId, d.AssetId, d.Asset.AssetName, d.Asset.AssetPrefix, d.Quantity, d.SerialNumber,
-            d.ReferenceNumber, d.AssetInformation, d.Condition, d.Remarks, d.Specifications, d.RequestJustification, d.RequiredDuration, d.IntendedPurpose)).ToList(),
+            d.ReferenceNumber, d.AssetInformation, d.Condition, d.Remarks, d.Specifications, d.RequestJustification, d.RequiredDuration, d.IntendedPurpose)
+        {
+            AssetCode = d.Asset.AssetCode
+        }).ToList(),
         g.Attachments.OrderBy(a => a.GoodAttachmentId).Select(a => new GoodAttachmentDto(a.GoodAttachmentId, a.OriginalFileName, a.ContentType, a.FileSize, a.StoragePath, a.UploadedAt)).ToList(),
         g.StatusHistory.OrderBy(h => h.GoodStatusHistoryId).Select(h => new GoodStatusHistoryDto(h.GoodStatusHistoryId, h.PreviousStatus, h.NewStatus, h.ActorUserId,
             h.ActorNameSnapshot, h.ActorNikSnapshot, h.ChangedAt, h.Notes)).ToList(),

@@ -11,7 +11,7 @@ public class TrPasswordResetRequest
 {
     public int PasswordResetRequestId { get; set; }
     public string RequestId { get; set; } = string.Empty;
-    public int UserId { get; set; }
+    public int? UserId { get; set; }
     public string MemberName { get; set; } = string.Empty;
     public string Nik { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;

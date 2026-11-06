@@ -12,6 +12,7 @@ public class MdAsset
     public int StatusId { get; set; }
     public string AssetStatus { get; set; } = string.Empty;
     public string AssetPrefix { get; set; } = string.Empty;
+    public string AssetCode { get; set; } = string.Empty;
     public DateTime CreatedDt { get; set; }
     public int Quantity { get; set; }
     public string? UnitOfMeasure { get; set; }

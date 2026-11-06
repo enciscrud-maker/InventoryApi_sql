@@ -32,6 +32,15 @@ BEGIN
     );
 END;
 
+IF EXISTS (
+    SELECT 1
+    FROM sys.columns
+    WHERE object_id = OBJECT_ID(N'dbo.TR_PasswordResetRequest')
+      AND name = N'UserId'
+      AND is_nullable = 0
+)
+    ALTER TABLE dbo.TR_PasswordResetRequest ALTER COLUMN UserId int NULL;
+
 IF NOT EXISTS (
     SELECT 1 FROM sys.indexes
     WHERE object_id = OBJECT_ID(N'dbo.TR_PasswordResetRequest')

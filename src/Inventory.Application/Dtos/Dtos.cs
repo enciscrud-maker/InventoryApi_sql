@@ -5,9 +5,9 @@ public record LoginRequest(string Identifier, string Password);
 public record RefreshRequest(string RefreshToken);
 public record LogoutRequest(string? RefreshToken);
 public record PasswordResetSubmissionRequest(string Name, string Nik, string Email, string Phone);
-public record PasswordResetSubmissionDto(string Message);
+public record PasswordResetSubmissionDto(string Message, string RequestId, string? GmailComposeUrl = null);
 public record PasswordResetProcessRequest(string Action, string? NewPassword, string? RejectionReason);
-public record PasswordResetRequestDto(int Id, string RequestId, int AccountId, string MemberName, string Nik,
+public record PasswordResetRequestDto(int Id, string RequestId, int? AccountId, string MemberName, string Nik,
     string Email, string Phone, DateTime RequestDate, string Status, string? ProcessedBy,
     DateTime? ProcessedAt, string? RejectionReason);
 public record PasswordResetRequestsDto(IReadOnlyList<PasswordResetRequestDto> Requests);
@@ -59,9 +59,10 @@ public record ConditionDto(int ConditionId, string ConditionCode, string Conditi
 
 // ---------- Assets ----------
 public record AssetRequest(int CatId, int GroupId, int TypeId, int BrandId, string AssetName, AssetType AssetType, int StatusId, string AssetPrefix,
+    string AssetCode,
     int? Quantity, string? UnitOfMeasure, string? SerialNumber, string? AssetTag, string? PurchaseOrderNumber, string? SapMaterialNumber,
     decimal? AssetValue, string? Description, int? BusUnitId, int? ConditionId, string? BusinessUnit, string? RowVersion,
-    int? LocationId = null, int? ModelId = null, string? AssetCode = null);
+    int? LocationId = null, int? ModelId = null);
 public record AssetDto(int AssetId, int CatId, string CatName, int GroupId, string GroupName, int TypeId, string TypeName, int BrandId, string BrandName,
     string AssetName, AssetType AssetType, int StatusId, string AssetStatus, string AssetPrefix, DateTime CreatedDt, int Quantity, string? UnitOfMeasure,
     string? SerialNumber, string? AssetTag, string? PurchaseOrderNumber, string? SapMaterialNumber, decimal? AssetValue, string? Description,
@@ -105,7 +106,10 @@ public record GoodStatusRequest(GoodStatus Status, string? Notes);
 public record GoodListItemDto(int GoodId, DateTime Date, string DocumentNumber, int TotalAssets, TransactionType TransactionType,
     string SourceOrRecipient, string Destination, GoodStatus Status);
 public record GoodItemDto(int GoodDetailId, int AssetId, string AssetName, string AssetPrefix, int Quantity, string? SerialNumber, string? ReferenceNumber,
-    string? AssetInformation, string? Condition, string? Remarks, string? Specifications, string? RequestJustification, string? RequiredDuration, string? IntendedPurpose);
+    string? AssetInformation, string? Condition, string? Remarks, string? Specifications, string? RequestJustification, string? RequiredDuration, string? IntendedPurpose)
+{
+    public string AssetCode { get; init; } = AssetPrefix;
+}
 public record GoodAttachmentDto(int GoodAttachmentId, string OriginalFileName, string ContentType, long FileSize, string StoragePath, DateTime UploadedAt);
 public record GoodStatusHistoryDto(int GoodStatusHistoryId, GoodStatus PreviousStatus, GoodStatus NewStatus, int ActorUserId, string ActorName, string ActorNik, DateTime ChangedAt, string? Notes);
 public record GoodDetailDto(int GoodId, string DocumentNumber, string GoodName, GoodType GoodType, TransactionType TransactionType, GoodStatus Status, string GoodPrefix,
@@ -127,7 +131,10 @@ public record AuditItemRequest(int? StockOpnameDetailId, int AssetId, int Physic
 public record AuditItemsRequest(List<AuditItemRequest> Items);
 public record AuditCompleteRequest(bool UpdateLocation);
 public record AuditItemDto(int StockOpnameDetailId, int AssetId, string AssetName, string AssetPrefix, int SystemQuantity, int PhysicalQuantity, int Variance,
-    int? ActualLocationId, string? Finding, bool IsConfirmed, string? Notes, string? EvidencePath);
+    int? ActualLocationId, string? Finding, bool IsConfirmed, string? Notes, string? EvidencePath)
+{
+    public string AssetCode { get; init; } = AssetPrefix;
+}
 public record AuditListItemDto(int StockOpnameId, string StockOpnameNumber, string StockOpnameName, DateTime AuditDate, StockOpnameType StockOpnameType, string StockOpnameStatus,
     string? BusinessUnit, int? BusUnitId, int ItemCount, int DiscrepancyCount);
 public record AuditDetailDto(int StockOpnameId, string StockOpnameNumber, string StockOpnameName, DateTime AuditDate, StockOpnameType StockOpnameType, string StockOpnameStatus,

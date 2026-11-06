@@ -10,7 +10,7 @@ public class AssetService(IAppDbContext db, IHierarchyValidator hierarchy)
         if (!string.IsNullOrWhiteSpace(q.Search))
         {
             var s = q.Search.Trim();
-            x = x.Where(a => a.AssetName.Contains(s) || a.AssetPrefix.Contains(s));
+            x = x.Where(a => a.AssetName.Contains(s) || a.AssetPrefix.Contains(s) || a.AssetCode.Contains(s));
         }
         if (q.CatId.HasValue) x = x.Where(a => a.CatId == q.CatId.Value);
         if (q.GroupId.HasValue) x = x.Where(a => a.GroupId == q.GroupId.Value);
@@ -28,6 +28,7 @@ public class AssetService(IAppDbContext db, IHierarchyValidator hierarchy)
     {
         "name" or "assetname" => x.OrderByDir(a => a.AssetName, desc),
         "prefix" or "assetprefix" => x.OrderByDir(a => a.AssetPrefix, desc),
+        "code" or "assetcode" => x.OrderByDir(a => a.AssetCode, desc),
         "createddt" or "created" => x.OrderByDir(a => a.CreatedDt, desc),
         "quantity" => x.OrderByDir(a => a.Quantity, desc),
         "status" => x.OrderByDir(a => a.Status.StatusName, desc),
@@ -101,11 +102,11 @@ public class AssetService(IAppDbContext db, IHierarchyValidator hierarchy)
         var items = await Sort(Filtered(q), q.SortBy, q.Desc).ToListAsync(ct);
         return ExcelHelper.Build("Assets", new[]
         {
-            "AssetId", "AssetPrefix", "AssetName", "Category", "Group", "Type", "Brand", "AssetType", "AssetStatus", "Quantity", "UnitOfMeasure",
+            "AssetId", "AssetPrefix", "AssetCode", "AssetName", "Category", "Group", "Type", "Brand", "AssetType", "AssetStatus", "Quantity", "UnitOfMeasure",
             "SerialNumber", "AssetTag", "PurchaseOrderNumber", "SapMaterialNumber", "AssetValue", "Condition", "BusinessUnit", "CreatedDt (UTC)"
         }, items.Select(a => new object?[]
         {
-            a.AssetId, a.AssetPrefix, a.AssetName, a.Category.CatName, a.Group.GroupName, a.Type.TypeName, a.Brand.BrandName, a.AssetType, a.Status.StatusName,
+            a.AssetId, a.AssetPrefix, a.AssetCode, a.AssetName, a.Category.CatName, a.Group.GroupName, a.Type.TypeName, a.Brand.BrandName, a.AssetType, a.Status.StatusName,
             a.Quantity, a.UnitOfMeasure, a.SerialNumber, a.AssetTag, a.PurchaseOrderNumber, a.SapMaterialNumber, a.AssetValue,
             a.Condition?.ConditionName, a.BusinessUnit, a.CreatedDt
         }));
@@ -115,8 +116,12 @@ public class AssetService(IAppDbContext db, IHierarchyValidator hierarchy)
     {
         var self = id ?? 0;
         await hierarchy.ValidateAsync(r.CatId, r.GroupId, r.TypeId, r.BrandId, ct);
-        if (await db.Assets.AnyAsync(a => a.AssetPrefix == r.AssetPrefix && a.AssetId != self, ct))
-            throw new ConflictException($"AssetPrefix '{r.AssetPrefix}' already exists.");
+        var prefix = r.AssetPrefix.Trim();
+        var code = r.AssetCode.Trim();
+        if (!code.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            throw new ValidationFailedException("assetCode", "AssetCode must start with AssetPrefix.");
+        if (await db.Assets.AnyAsync(a => a.AssetCode == code && a.AssetId != self, ct))
+            throw new ConflictException($"AssetCode '{code}' already exists.");
         if (!string.IsNullOrWhiteSpace(r.SerialNumber) && await db.Assets.AnyAsync(a => a.SerialNumber == r.SerialNumber && a.AssetId != self, ct))
             throw new ConflictException($"SerialNumber '{r.SerialNumber}' already exists.");
         if (r.BusUnitId.HasValue && !await db.BusinessUnits.AnyAsync(b => b.BusUnitId == r.BusUnitId.Value, ct))
@@ -133,7 +138,7 @@ public class AssetService(IAppDbContext db, IHierarchyValidator hierarchy)
     {
         a.CatId = r.CatId; a.GroupId = r.GroupId; a.TypeId = r.TypeId; a.BrandId = r.BrandId;
         a.AssetName = r.AssetName.Trim(); a.AssetType = r.AssetType; a.StatusId = status.StatusId;
-        a.AssetStatus = status.StatusName; a.AssetPrefix = r.AssetPrefix.Trim();
+        a.AssetStatus = status.StatusName; a.AssetPrefix = r.AssetPrefix.Trim(); a.AssetCode = r.AssetCode.Trim();
         a.UnitOfMeasure = r.UnitOfMeasure?.Trim();
         a.SerialNumber = string.IsNullOrWhiteSpace(r.SerialNumber) ? null : r.SerialNumber.Trim();
         a.AssetTag = r.AssetTag?.Trim(); a.PurchaseOrderNumber = r.PurchaseOrderNumber?.Trim(); a.SapMaterialNumber = r.SapMaterialNumber?.Trim();
@@ -141,8 +146,11 @@ public class AssetService(IAppDbContext db, IHierarchyValidator hierarchy)
         a.BusUnitId = r.BusUnitId; a.ConditionId = r.ConditionId; a.BusinessUnit = r.BusinessUnit?.Trim();
     }
 
-    public static AssetDto ToDto(MdAsset a) => new(a.AssetId, a.CatId, a.Category.CatName, a.GroupId, a.Group.GroupName, a.TypeId, a.Type.TypeName,
+    public static AssetDto ToDto(MdAsset a) => new AssetDto(a.AssetId, a.CatId, a.Category.CatName, a.GroupId, a.Group.GroupName, a.TypeId, a.Type.TypeName,
         a.BrandId, a.Brand.BrandName, a.AssetName, a.AssetType, a.StatusId, a.Status.StatusName, a.AssetPrefix, a.CreatedDt, a.Quantity, a.UnitOfMeasure, a.SerialNumber,
         a.AssetTag, a.PurchaseOrderNumber, a.SapMaterialNumber, a.AssetValue, a.Description, a.BusUnitId,
-        a.ConditionId, a.Condition?.ConditionName, a.BusinessUnit, a.UpdatedDt, Convert.ToBase64String(a.RowVersion));
+        a.ConditionId, a.Condition?.ConditionName, a.BusinessUnit, a.UpdatedDt, Convert.ToBase64String(a.RowVersion))
+    {
+        AssetCode = a.AssetCode
+    };
 }

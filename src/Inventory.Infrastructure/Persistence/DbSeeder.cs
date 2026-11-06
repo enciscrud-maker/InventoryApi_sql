@@ -161,14 +161,14 @@ public static class DbSeeder
         {
             CatId = cat.CatId, GroupId = grp.GroupId, TypeId = typ.TypeId, BrandId = lenovo.BrandId, AssetName = "Lenovo ThinkPad T14",
             AssetType = AssetType.In, StatusId = active.StatusId, AssetStatus = active.StatusName,
-            AssetPrefix = "LPT-0001", CreatedDt = DateTime.UtcNow, Quantity = 10, UnitOfMeasure = "unit",
+            AssetPrefix = "LPT", AssetCode = "LPT00001", CreatedDt = DateTime.UtcNow, Quantity = 10, UnitOfMeasure = "unit",
             BusUnitId = wh.BusUnitId, ConditionId = good.ConditionId, BusinessUnit = "Logistics", AssetValue = 18_500_000m
         };
         var asset2 = new MdAsset
         {
             CatId = cat.CatId, GroupId = grp.GroupId, TypeId = typ.TypeId, BrandId = dell.BrandId, AssetName = "Dell Latitude 5440",
             AssetType = AssetType.In, StatusId = active.StatusId, AssetStatus = active.StatusName,
-            AssetPrefix = "LPT-0002", CreatedDt = DateTime.UtcNow, Quantity = 5, UnitOfMeasure = "unit",
+            AssetPrefix = "LPT", AssetCode = "LPT00002", CreatedDt = DateTime.UtcNow, Quantity = 5, UnitOfMeasure = "unit",
             BusUnitId = hq.BusUnitId, ConditionId = good.ConditionId, BusinessUnit = "Corporate", AssetValue = 16_000_000m
         };
         db.Assets.AddRange(asset, asset2); await db.SaveChangesAsync(ct);

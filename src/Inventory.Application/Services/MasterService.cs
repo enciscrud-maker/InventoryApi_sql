@@ -213,16 +213,33 @@ public class LocationService(IAppDbContext db, IHierarchyValidator h) : MasterSe
     protected override IQueryable<MdLocation> ApplySort(IQueryable<MdLocation> q, string? s, bool d) => s switch
     { "name" => q.OrderByDir(x => x.LocationName, d), "businessunit" => q.OrderByDir(x => x.BusUnitId, d), _ => q.OrderByDir(x => x.LocationId, d) };
     protected override LocationDto ToDto(MdLocation e) => new(e.LocationId, e.LocationCode, e.BusUnitId, e.LocationName, e.IsActive);
-    protected override MdLocation Create() => new()
-    {
-        LocationCode = "LOC-" + Guid.NewGuid().ToString("N")[..26],
-        IsActive = true
-    };
+    protected override MdLocation Create() => new() { IsActive = true };
     protected override async Task ApplyAsync(MdLocation e, LocationRequest r, int? id, CancellationToken ct)
     {
-        if (!await Db.BusinessUnits.AnyAsync(x => x.BusUnitId == r.BusUnitId, ct))
-            throw new ValidationFailedException("busUnitId", "Business unit does not exist.");
-        e.BusUnitId = r.BusUnitId; e.LocationName = r.LocationName.Trim();
+        var businessUnit = await Db.BusinessUnits.FirstOrDefaultAsync(x => x.BusUnitId == r.BusUnitId, ct)
+            ?? throw new ValidationFailedException("busUnitId", "Business unit does not exist.");
+        if (!id.HasValue || e.BusUnitId != r.BusUnitId)
+            e.LocationCode = await GenerateLocationCodeAsync(businessUnit, ct);
+        e.BusUnitId = businessUnit.BusUnitId;
+        e.LocationName = r.LocationName.Trim();
+    }
+    private async Task<string> GenerateLocationCodeAsync(MdBusinessUnit businessUnit, CancellationToken ct)
+    {
+        const int maxLength = 30;
+        const int suffixLength = 12;
+        var prefixLength = maxLength - "LOC--".Length - suffixLength;
+        var unitCode = businessUnit.BusUnitCode.Trim();
+        if (unitCode.Length > prefixLength) unitCode = unitCode[..prefixLength];
+
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            var suffix = Guid.NewGuid().ToString("N")[..suffixLength];
+            var code = $"LOC-{unitCode}-{suffix}";
+            if (!await Db.Locations.AnyAsync(x => x.LocationCode == code, ct))
+                return code;
+        }
+
+        throw new ConflictException("A unique location code could not be generated. Please retry.");
     }
     protected override Task<bool> IsReferencedAsync(int id, CancellationToken ct) => Task.FromResult(false);
 }

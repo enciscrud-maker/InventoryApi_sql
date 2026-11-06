@@ -4,7 +4,8 @@ namespace Inventory.Api.Controllers;
 public class AuthController(
     AuthService auth,
     PasswordResetService passwordResets,
-    Inventory.Application.Abstractions.ICurrentUser current) : ControllerBase
+    Inventory.Application.Abstractions.ICurrentUser current,
+    IConfiguration configuration) : ControllerBase
 {
     /// <summary>Login with EmployeeEmail or EmployeeNik (field <c>identifier</c>) and password.</summary>
     [HttpPost("login"), AllowAnonymous]
@@ -13,7 +14,28 @@ public class AuthController(
     [HttpPost("password-reset"), AllowAnonymous]
     public async Task<ActionResult<PasswordResetSubmissionDto>> RequestPasswordReset(
         PasswordResetSubmissionRequest request,
-        CancellationToken ct) => Accepted(await passwordResets.SubmitAsync(request, ct));
+        CancellationToken ct)
+    {
+        var submission = await passwordResets.SubmitAsync(request, ct);
+        var ownerEmail = configuration["PasswordReset:OwnerEmail"];
+        if (string.IsNullOrWhiteSpace(ownerEmail))
+            ownerEmail = configuration["Seed:AdminEmail"] ?? "admin@inventory.local";
+        var subject = $"Permohonan reset password - {request.Name.Trim()}";
+        var body = string.Join(
+            "\n",
+            "Permohonan reset password:",
+            $"Request ID: {submission.RequestId}",
+            $"Nama: {request.Name.Trim()}",
+            $"NIK: {request.Nik.Trim()}",
+            $"Email: {request.Email.Trim()}",
+            $"Nomor telepon: {request.Phone.Trim()}");
+        var gmailComposeUrl = "https://mail.google.com/mail/?view=cm&fs=1" +
+                              $"&to={Uri.EscapeDataString(ownerEmail)}" +
+                              $"&su={Uri.EscapeDataString(subject)}" +
+                              $"&body={Uri.EscapeDataString(body)}";
+
+        return Accepted(submission with { GmailComposeUrl = gmailComposeUrl });
+    }
 
     /// <summary>Exchanges a valid refresh token for a new access/refresh token pair (refresh tokens are single use).</summary>
     [HttpPost("refresh"), AllowAnonymous]

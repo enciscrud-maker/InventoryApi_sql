@@ -35,8 +35,17 @@ public class PasswordResetTests(ApiFixture fx)
         (await anonymous.GetAsync("/api/password-reset-requests")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         var submitted = await anonymous.PostAsJsonAsync("/api/auth/password-reset", requestBody);
         submitted.StatusCode.Should().Be(HttpStatusCode.Accepted);
-        (await anonymous.PostAsJsonAsync("/api/auth/password-reset", requestBody))
-            .StatusCode.Should().Be(HttpStatusCode.Accepted);
+        var submission = await J(submitted);
+        submission["requestId"]!.GetValue<string>().Should().StartWith("PRR-");
+        var gmailComposeUrl = submission["gmailComposeUrl"]!.GetValue<string>();
+        gmailComposeUrl.Should().StartWith("https://mail.google.com/mail/?view=cm&fs=1");
+        gmailComposeUrl.Should().Contain(Uri.EscapeDataString(member.employeeEmail));
+        gmailComposeUrl.Should().Contain(Uri.EscapeDataString(member.employeeNik));
+
+        var duplicateSubmission = await anonymous.PostAsJsonAsync("/api/auth/password-reset", requestBody);
+        duplicateSubmission.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        (await J(duplicateSubmission))["requestId"]!.GetValue<string>()
+            .Should().Be(submission["requestId"]!.GetValue<string>());
 
         var requests = await J(await admin.GetAsync("/api/password-reset-requests"));
         var resetRequest = requests["requests"]!.AsArray().SingleOrDefault(item =>
@@ -88,6 +97,43 @@ public class PasswordResetTests(ApiFixture fx)
 
         response.StatusCode.Should().Be(HttpStatusCode.Accepted);
         (await J(response))["message"]!.GetValue<string>()
-            .Should().Contain("If the submitted details match");
+            .Should().Contain("recorded for review");
+    }
+
+    [Fact]
+    public async Task Password_reset_submission_stores_unmatched_details_for_owner_review()
+    {
+        var admin = await fx.AdminAsync();
+        var requestBody = new
+        {
+            name = "Unmatched Person",
+            nik = "UNMATCHED-NIK",
+            email = "unmatched@test.local",
+            phone = "555-0123"
+        };
+
+        var response = await fx.Anonymous().PostAsJsonAsync("/api/auth/password-reset", requestBody);
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        var submitted = await J(response);
+        submitted["gmailComposeUrl"]!.GetValue<string>()
+            .Should().Contain(Uri.EscapeDataString(requestBody.name));
+
+        var requests = await J(await admin.GetAsync("/api/password-reset-requests"));
+        var resetRequest = requests["requests"]!.AsArray().SingleOrDefault(item =>
+            item?["requestId"]?.GetValue<string>() == submitted["requestId"]!.GetValue<string>())
+            ?? throw new InvalidOperationException("The password reset request was not listed.");
+        resetRequest["accountId"].Should().BeNull();
+        resetRequest["memberName"]!.GetValue<string>().Should().Be(requestBody.name);
+        resetRequest["nik"]!.GetValue<string>().Should().Be(requestBody.nik);
+
+        var id = resetRequest["id"]!.GetValue<int>();
+        (await admin.PatchAsJsonAsync(
+            $"/api/password-reset-requests/{id}",
+            new { action = "process", newPassword = "Changed#12345" }))
+            .StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await admin.PatchAsJsonAsync(
+            $"/api/password-reset-requests/{id}",
+            new { action = "reject", rejectionReason = "Details not verified." }))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
     }
 }

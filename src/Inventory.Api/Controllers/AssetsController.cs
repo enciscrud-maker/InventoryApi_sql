@@ -5,7 +5,7 @@ public class AssetsController(AssetService assets, AssetImportService import) : 
 {
     private const long MaxImportBytes = 5 * 1024 * 1024;
 
-    /// <summary>Paged list. Filters: catId, groupId, typeId, brandId, busUnitId, businessUnit, conditionId, assetType, assetStatus. Sort: name, prefix, createdDt, quantity, status.</summary>
+    /// <summary>Paged list. Filters: catId, groupId, typeId, brandId, busUnitId, businessUnit, conditionId, assetType, assetStatus. Sort: name, prefix, code, createdDt, quantity, status.</summary>
     [HttpGet, Authorize(Policy = Permissions.AssetRead)]
     public async Task<ActionResult<PagedResult<AssetDto>>> List([FromQuery] AssetQuery q, CancellationToken ct) => Ok(await assets.ListAsync(q, ct));
 

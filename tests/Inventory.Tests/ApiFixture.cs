@@ -111,10 +111,13 @@ public class ApiFixture : IAsyncLifetime
         var h = await SeedHierarchyAsync(await AdminAsync());
         var statuses = await J(await c.GetAsync("/api/asset-statuses?search=Active"));
         var statusId = statuses["items"]![0]!["statusId"]!.GetValue<int>();
+        var assetPrefix = prefix ?? "T-" + Guid.NewGuid().ToString("N")[..10];
         var res = await c.PostAsJsonAsync("/api/assets", new
         {
             catId = h.Cat, groupId = h.Group, typeId = h.Type, brandId = h.Brand, assetName = "Test asset", assetType = "In", statusId,
-            assetPrefix = prefix ?? "T-" + Guid.NewGuid().ToString("N")[..10], quantity
+            assetPrefix,
+            assetCode = assetPrefix + "00001",
+            quantity
         });
         res.StatusCode.Should().Be(System.Net.HttpStatusCode.Created, await res.Content.ReadAsStringAsync());
         return (await J(res))["assetId"]!.GetValue<int>();
